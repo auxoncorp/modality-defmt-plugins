@@ -6,7 +6,6 @@ authors = ["Jon Lamb <jon@auxon.io>"]
 description = "A Modality reflector plugin suite for defmt data"
 license = "Apache-2.0"
 repository = "https://github.com/auxoncorp/modality-defmt-plugins"
-documentation = "https://docs.rs/modality-defmt-plugins"
 exclude = ["test_system/"]
 
 [lib]

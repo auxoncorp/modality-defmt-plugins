@@ -1,4 +1,4 @@
-# modality-defmt-plugins &emsp; ![ci] [![crates.io]](https://crates.io/crates/modality-defmt-plugins)
+# modality-defmt-plugins &emsp; ![ci]
 
 A [Modality][modality] reflector plugin suite and ingest adapter library for Ferrous Systems's [defmt][defmt] data.
 
@@ -142,7 +142,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 [ci]: https://github.com/auxoncorp/modality-defmt-plugins/workflows/CI/badge.svg
-[crates.io]: https://img.shields.io/crates/v/modality-defmt-plugins.svg
 [defmt]: https://defmt.ferrous-systems.com/
 [modality]: https://auxon.io/products/modality
 [modality-sdk]: https://github.com/auxoncorp/auxon-sdk
