@@ -116,7 +116,7 @@ task/ISR contexts and interactions.
 Currently the only supported RTOS mode is `rtic1`.
 It requires using our [RTIC fork](https://github.com/auxoncorp/cortex-m-rtic/tree/defmt-instrumentation)
 (based on version 1.1.4) with trace instrumentation.
-You can try it out by adding the follwing to your `Cargo.toml`:
+You can try it out by adding the following to your `Cargo.toml`:
 ```toml
 [dependencies.cortex-m-rtic]
 git = "https://github.com/auxoncorp/cortex-m-rtic.git"
