@@ -1,0 +1,65 @@
+# @author = "dev.automation@auxon.io"
+# @project = "Test System"
+
+# @rtos_mode = "rtic1"
+behavior "Basic Checks"
+  prohibited case "Start event comes first"
+    AUXON_TRACE_START@init <- *@*
+  end
+
+  nominal case "Start event checks"
+    AUXON_TRACE_START@init (exists(_.version) AND exists(_.task) AND _.level = "trace") aggregate count() = 1
+  end
+end
+
+# @rtos_mode = "rtic1"
+# @interaction_mode = "fully-linear"
+behavior "Context Switching"
+  when "Trace starts"
+    AUXON_TRACE_START @ init as init
+  end
+
+  nominal case "Execution flows as expected"
+    init
+      -> AUXON_TASK_SPAWN @ init (_.task = "blinky" AND _.isr = "FREQM")
+        # Entered ISR
+        -> AUXON_INTERRUPT_ENTER @ FREQM (_.priority = 1 AND _.interrupt = 28)
+          # Entered task
+          -> AUXON_TASK_ENTER @ blinky (_.priority = 1)
+          -> blink @ blinky
+          # blinky task reschedules itself
+          -> AUXON_TASK_SPAWN_AT @ blinky (_.task = "blinky")
+            # SERCOM0 preempts
+            -> AUXON_INTERRUPT_ENTER @ SERCOM0_2 (_.priority = 2)
+              -> AUXON_TASK_ENTER @ uart_handler
+              -> uart_rx @ uart_handler
+              -> AUXON_TASK_SPAWN @ uart_handler
+              -> AUXON_TASK_EXIT @ uart_handler
+            -> AUXON_INTERRUPT_EXIT @ SERCOM0_2
+          # back on the blinky task
+          -> AUXON_TASK_EXIT @ blinky
+        # back on the ISR
+        -> AUXON_CONTEXT_RETURN @ FREQM
+
+  end
+end
+
+behavior "System Shutdown"
+  nominal case "System panics when done"
+    panic @ consumer (_.level = "error") aggregate count() = 1
+  end
+end
+
+behavior "Producer Consumer Communications"
+  when "A value is produced"
+    send_data @ producer as tx
+  end
+
+  until "The next value is produced"
+    send_data @ producer
+  end
+
+  nominal case "The value is consumed"
+    tx -> recv_data @ consumer (_.data = tx.data)
+  end
+end

@@ -1,0 +1,26 @@
+[plugins]
+plugins-dir = '/usr/lib/modality-reflector-plugins'
+
+[ingest]
+additional-timeline-attributes = [
+    "ci_job='${GITHUB_JOB-local}'",
+    "ci_commit='${GITHUB_SHA-local}'",
+    "ci_git_commit='${GIT_COMMIT-local}'",
+]
+
+#[plugins.ingest.importers.defmt]
+[plugins.ingest.collectors.defmt]
+additional-timeline-attributes = [
+    "platform='RTICv1'",
+    "module='defmt-test-system'",
+]
+
+# NOTE: this should be an importer once we add that workflow to the docker image
+#[plugins.ingest.importers.defmt.metadata]
+[plugins.ingest.collectors.defmt.metadata]
+client-timeout = "2s"
+open-timeout = "10s"
+rtos-mode = "rtic1"
+# NOTE: this is inside the docker container's fs
+elf-file = "/atsamd-rtic-firmware"
+file = "/rtt_log.bin"

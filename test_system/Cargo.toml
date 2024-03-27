@@ -1,0 +1,81 @@
+[package]
+name = "atsamd-rtic"
+version = "0.1.0"
+edition = "2021"
+authors = ["Jon Lamb"]
+build = "build.rs"
+
+[[bin]]
+name = "atsamd-rtic-firmware"
+path = "src/main.rs"
+
+[dependencies]
+defmt = "0.3"
+defmt-rtt = "0.4"
+
+[dependencies.cortex-m]
+version = "0.7"
+features = ["critical-section-single-core"]
+
+[dependencies.cortex-m-rtic]
+#version = "1.1.4"
+git = "https://github.com/auxoncorp/cortex-m-rtic.git"
+branch = "defmt-instrumentation"
+
+[dependencies.dwt-systick-monotonic]
+version = "1.1"
+features = ["extend"]
+
+[dependencies.atsamd-hal]
+version = "0.16"
+features = ["samd51g-rt", "samd51g", "samd51", "rtic", "defmt", "unproven"]
+
+[build-dependencies.built]
+version = "0.7"
+features = ["git2", "chrono"]
+
+[patch.crates-io]
+defmt = { git = "https://github.com/knurling-rs/defmt.git", rev = "4db33ca5df8d7a7b5d9036c49b1ea535cc3986c0" }
+
+[profile.release]
+codegen-units = 1
+debug = 2
+lto = true
+
+[package.metadata.renode]
+name = 'atsamd-rtic'
+disable-xwt = true
+description = 'Runs the example firmware in Renode'
+machine-name = 'atsamd'
+using-sysbus = true
+init-commands = [
+    'include @renode/RttReader.cs',
+]
+platform-descriptions = [
+    '@platforms/cpus/atsamd51g19a.repl',
+    '''
+    sercom0: UART.SAMD5_UART @ sysbus 0x40003000
+        ->nvic@48
+    ''',
+]
+pre-start-commands = [
+    'emulation CreateUARTHub "uarthub"',
+    'connector Connect sercom0 uarthub',
+    'connector Connect sercom3 uarthub',
+    'machine CreateRttReader',
+    # The RTT data can also be streamed over a pty
+    #'emulation CreateUartPtyTerminal "rttio" "/tmp/rtt_uart" true',
+    #'connector Connect RttReader rttio',
+    'RttReader CreateFileBackend @/tmp/rtt_log.bin true',
+    'logLevel 3 sercom0',
+    'logLevel 3 sercom3',
+    'logLevel 3 sysbus',
+    'logLevel 3 nvic',
+    'logLevel 3 dwt',
+    'logLevel -1 RttReader',
+    'RttReader Start',
+]
+start = 'emulation RunFor "00:00:20"'
+post-start-commands = [
+    'quit'
+]

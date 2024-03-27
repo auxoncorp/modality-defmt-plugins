@@ -1,0 +1,15 @@
+[target.thumbv7em-none-eabihf]
+runner = "renode-run"
+rustflags = [
+    "-C", "linker=flip-link",
+    "-C", "link-arg=--nmagic",
+    "-C", "link-arg=-Tlink.x",
+    "-C", "link-arg=-Tdefmt.x",
+]
+
+[build]
+target = "thumbv7em-none-eabihf"
+
+[env]
+DEFMT_LOG = "trace"
+DEFMT_RTT_BUFFER_SIZE = "1024"

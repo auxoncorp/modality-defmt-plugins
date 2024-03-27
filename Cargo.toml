@@ -1,0 +1,60 @@
+[package]
+name = "modality-defmt-plugins"
+version = "0.1.0"
+edition = "2021"
+authors = ["Jon Lamb <jon@auxon.io>"]
+description = "A Modality reflector plugin suite for defmt data"
+license = "Apache-2.0"
+repository = "https://github.com/auxoncorp/modality-defmt-plugins"
+documentation = "https://docs.rs/modality-defmt-plugins"
+exclude = ["test_system/"]
+
+[lib]
+name = "modality_defmt_plugin"
+path = "src/lib.rs"
+
+[[bin]]
+name = "modality-defmt-rtt-collector"
+path = "src/bin/rtt_collector.rs"
+
+[[bin]]
+name = "modality-defmt-importer"
+path = "src/bin/importer.rs"
+
+[dependencies]
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "io-util", "net", "signal", "tracing"] }
+thiserror = "1"
+anyhow = "1"
+derive_more = "0.99"
+url = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+humantime = "2"
+serde = { version = "1.0", features=["derive"] }
+serde_with = "3.6"
+probe-rs = "0.23"
+defmt-decoder = { git = "https://github.com/auxoncorp/defmt.git", branch = "decoder-changes", features=["unstable"] }
+defmt-parser = { git = "https://github.com/auxoncorp/defmt.git", branch = "decoder-changes", features=["unstable"] }
+goblin = "0.8"
+clap = { version = "4.5", features = ["derive", "env", "color"] }
+clap-stdin = "0.4"
+ctrlc = { version = "3.4", features=["termination"] }
+exitcode = "1"
+modality-api = "0.2"
+modality-ingest-client = "0.3"
+modality-ingest-protocol = "0.2"
+modality-reflector-config = "0.3"
+modality-auth-token = "0.2"
+
+[dev-dependencies]
+tempfile = "3.10"
+pretty_assertions = "1.4"
+tracing-test = "0.2"
+defmt-decoder = { git = "https://github.com/auxoncorp/defmt.git", branch = "decoder-changes", features=["unstable", "test_support"] }
+
+[profile.release]
+strip="debuginfo"
+
+[patch.crates-io]
+nusb = { git = "https://github.com/jonlamb-gh/nusb.git", branch = "update-ioctl-code" }
