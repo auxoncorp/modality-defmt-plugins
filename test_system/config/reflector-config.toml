@@ -15,9 +15,7 @@ additional-timeline-attributes = [
     "module='defmt-test-system'",
 ]
 
-# NOTE: this should be an importer once we add that workflow to the docker image
-#[plugins.ingest.importers.defmt.metadata]
-[plugins.ingest.collectors.defmt.metadata]
+[plugins.ingest.importers.defmt.metadata]
 client-timeout = "2s"
 open-timeout = "10s"
 rtos-mode = "rtic1"
