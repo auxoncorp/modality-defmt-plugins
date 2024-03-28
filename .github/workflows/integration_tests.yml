@@ -120,10 +120,6 @@ jobs:
           sudo cp target/release/modality-defmt-importer /usr/lib/modality-reflector-plugins/importers/
           sudo cp target/release/modality-defmt-rtt-collector /usr/lib/modality-reflector-plugins/collectors/
 
-          # NOTE: We're going to run the importer as a collector
-          # this will change once we add import support to our reflector docker image
-          sudo cp target/release/modality-defmt-importer /usr/lib/modality-reflector-plugins/collectors/
-
       - name: Create specs
         run: |
           conform spec create --file test_system/specs/tests.speqtr tests
@@ -154,14 +150,11 @@ jobs:
             -v "$(pwd)/target/thumbv7em-none-eabihf/release/atsamd-rtic-firmware:/atsamd-rtic-firmware" \
             -v "/tmp/rtt_log.bin:/rtt_log.bin" \
             -e MODALITY_AUTH_TOKEN="${{env.MODALITY_AUTH_TOKEN}}" \
-            -e REFLECTOR_OPTS="--config /reflector-config.toml --collector defmt" \
-            -d --rm \
+            -e IMPORT=1 \
+            -e REFLECTOR_OPTS="--config /reflector-config.toml defmt" \
             ${image}
 
-            # NOTE: this will go away once we switch to reflector import
-            sleep 2
-            modality wait-until --deadline '4m' 'panic@* aggregate count() = 1'
-            docker container stop reflector
+            modality workspace sync-indices
 
       - name: Inspect data
         env:
