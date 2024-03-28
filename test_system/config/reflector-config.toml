@@ -8,8 +8,7 @@ additional-timeline-attributes = [
     "ci_git_commit='${GIT_COMMIT-local}'",
 ]
 
-#[plugins.ingest.importers.defmt]
-[plugins.ingest.collectors.defmt]
+[plugins.ingest.importers.defmt]
 additional-timeline-attributes = [
     "platform='RTICv1'",
     "module='defmt-test-system'",
