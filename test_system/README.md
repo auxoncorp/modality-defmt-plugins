@@ -39,5 +39,5 @@ Now you run the system with `cargo run --release`.
 Once it completes, you can import the `defmt` data file `/tmp/rtt_log.bin` using the importer plugin.
 
 ```bash
-modality-reflector import --config config/reflector-config.toml defmt
+modality-reflector import --config config/reflector-config.toml defmt --elf-file target/thumbv7em-none-eabihf/release/atsamd-rtic-firmware /tmp/rtt_log.bin
 ```
