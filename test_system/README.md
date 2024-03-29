@@ -37,3 +37,7 @@ To run the setup locally, first install the dependencies:
 Now you run the system with `cargo run --release`.
 
 Once it completes, you can import the `defmt` data file `/tmp/rtt_log.bin` using the importer plugin.
+
+```bash
+modality-reflector import --config config/reflector-config.toml defmt
+```
