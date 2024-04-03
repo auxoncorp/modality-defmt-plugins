@@ -52,13 +52,15 @@ init-commands = [
     'include @renode/RttReader.cs',
 ]
 platform-descriptions = [
-    '@platforms/cpus/atsamd51g19a.repl',
+    'renode/atsamd51g19a.repl',
     '''
     sercom0: UART.SAMD5_UART @ sysbus 0x40003000
         ->nvic@48
     ''',
 ]
 pre-start-commands = [
+    # NOTE: this is a bit of a hack to speed things up
+    'sysbus.nvic Frequency 10000000000',
     'emulation CreateUARTHub "uarthub"',
     'connector Connect sercom0 uarthub',
     'connector Connect sercom3 uarthub',

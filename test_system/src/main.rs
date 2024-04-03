@@ -26,7 +26,7 @@ mod app {
     type Uart3Pads = uart::Pads<Sercom3, IoSet3, Pin<PA16, AlternateD>, Pin<PA17, AlternateD>>;
     type Uart3 = uart::Uart<uart::Config<Uart3Pads>, uart::Duplex>;
 
-    const SYSFREQ: u32 = 72_000_000;
+    const SYSFREQ: u32 = 1_000_000;
     #[monotonic(binds = SysTick, default = true)]
     type Mono = DwtSystick<SYSFREQ>;
 
@@ -93,6 +93,14 @@ mod app {
         blinky::spawn().unwrap();
 
         (Shared {}, Local { uart0, uart3 }, init::Monotonics(mono))
+    }
+
+    #[idle]
+    fn idle(_ctx: idle::Context) -> ! {
+        info!("Starting idle task");
+        loop {
+            cortex_m::asm::wfi();
+        }
     }
 
     #[task(local = [uart3, var: u32 = 0])]
