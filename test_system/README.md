@@ -38,6 +38,15 @@ Now you run the system with `cargo run --release`.
 
 Once it completes, you can import the `defmt` data file `/tmp/rtt_log.bin` using the importer plugin.
 
+NOTE: If you're using a tarball installation of Modality, then you'll need to update the reflector configuration file to point to
+the plugins directory (e.g. if installed to `/opt`):
+
+```diff
+[plugins]
+-plugins-dir = '/usr/lib/modality-reflector-plugins'
++plugins-dir = '/opt/modality/modality-reflector-plugins'
+```
+
 ```bash
 modality-reflector import --config config/reflector-config.toml defmt --elf-file target/thumbv7em-none-eabihf/release/atsamd-rtic-firmware /tmp/rtt_log.bin
 ```
