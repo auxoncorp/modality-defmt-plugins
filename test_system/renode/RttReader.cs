@@ -62,8 +62,12 @@ namespace Antmicro.Renode.Integrations
         }
 
         public void Stop() {
-            this.NoisyLog("Stopping RTT reading");
+            this.NoisyLog("Stopping RTT reading, flushing");
             pollTimer.Enabled = false;
+            if(controlBlockAddress != 0)
+            {
+                readRttBuffer();
+            }
         }
 
         private void TimerLimitReachedCallback()
@@ -157,6 +161,7 @@ namespace Antmicro.Renode.Integrations
             if(total > 0)
             {
                 machine.SystemBus.WriteDoubleWord(((ulong) chAddr) + ReadOffset, read);
+                //this.NoisyLog("RTT bytes {0}", total);
             }
 
             for(uint i = 0; i < total; i = i + 1)

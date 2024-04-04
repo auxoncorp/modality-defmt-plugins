@@ -24,3 +24,8 @@ def mc_write_staged_mutation(mutator_uuid_str, mutation_uuid_str):
         sysbus.WriteByte(var_mutation_id_addr + offset, val)
 
     sysbus.WriteDoubleWord(var_mutation_staged_addr, 1)
+
+def mc_wait_for_done():
+    while not emulationManager.CurrentEmulation.TryGetFromBag[str]('status')[0]:
+        time.sleep(0.1)
+    monitor.Parse('q')

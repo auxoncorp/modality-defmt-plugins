@@ -35,9 +35,6 @@ features = ["samd51g-rt", "samd51g", "samd51", "rtic", "defmt", "unproven"]
 version = "0.7"
 features = ["git2", "chrono"]
 
-[patch.crates-io]
-defmt = { git = "https://github.com/knurling-rs/defmt.git", rev = "4db33ca5df8d7a7b5d9036c49b1ea535cc3986c0" }
-
 [profile.release]
 codegen-units = 1
 debug = 2
@@ -60,6 +57,20 @@ platform-descriptions = [
         ->nvic@48
     ''',
 ]
+variables = [
+    '''
+    $hookScript =
+    """
+    self.Pause()
+    self.Log(LogLevel.Info, "Reached shutdown symbol, flushing RTT")
+    rtt = self.GetMachine()["sysbus.RttReader"]
+    rtt.Stop()
+    # NOTE: this only stops if the GUI/xwt is enabled
+    #Antmicro.Renode.Emulator.Exit()
+    emulationManager.CurrentEmulation.AddOrUpdateInBag('status', 'finished')
+    """
+    '''
+]
 pre-start-commands = [
     # NOTE: this is a bit of a hack to speed things up
     'sysbus.nvic Frequency 10000000000',
@@ -79,13 +90,14 @@ pre-start-commands = [
     'logLevel -1 RttReader',
     'RttReader Start',
 ]
-# Includes the Deviant staged mutation related
+# Include the Deviant staged mutation related
 #'write_staged_mutation "88b565a8-455b-4993-9779-9f6d4004d6d5" "d135b4b9-64c9-4d0d-b2bb-621e37ca29f7"',
 reset = '''
     sysbus LoadELF $bin
     clear_deviant_noint_vars
+    cpu0 AddHook `sysbus GetSymbolAddress "wait_forever"` $hookScript
 '''
-start = 'emulation RunFor "00:00:15"'
 post-start-commands = [
-    'quit'
+    # Wait for the test to finish, then quit
+    'wait_for_done',
 ]

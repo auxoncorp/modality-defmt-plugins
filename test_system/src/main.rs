@@ -224,6 +224,13 @@ mod panic_impl {
             defmt::error!("panic::msg={}", defmt::Display2Format(info));
         }
 
+        wait_forever();
+    }
+
+    // NOTE: we use this symbol in renode to indicate it's time to shutdown
+    #[inline(never)]
+    #[no_mangle]
+    fn wait_forever() -> ! {
         loop {
             atomic::compiler_fence(Ordering::SeqCst);
         }
