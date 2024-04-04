@@ -60,7 +60,12 @@ namespace Antmicro.Renode.Integrations
             this.NoisyLog("Starting RTT reading");
             pollTimer.Enabled = true;
         }
-        
+
+        public void Stop() {
+            this.NoisyLog("Stopping RTT reading");
+            pollTimer.Enabled = false;
+        }
+
         private void TimerLimitReachedCallback()
         {
             if(controlBlockAddress == 0)
@@ -135,7 +140,7 @@ namespace Antmicro.Renode.Integrations
                 {
                     break;
                 }
-             
+
                 uint addr = chBufferPtr + read;
                 machine.SystemBus.ReadBytes((ulong) addr, (int) count, buffer, (int) total);
 

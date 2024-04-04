@@ -1,9 +1,10 @@
 use crate::Error;
 use defmt_decoder::{Arg, Frame, Location};
 use defmt_parser::{Fragment, ParserMode};
+use modality_api::Uuid;
 use modality_api::{AttrVal, BigInt, Nanoseconds, TimelineId};
 use std::collections::BTreeMap;
-use tracing::warn;
+use tracing::{debug, warn};
 
 pub type EventAttributes = BTreeMap<String, AttrVal>;
 
@@ -174,6 +175,8 @@ impl EventRecord {
             formatted_string.clone().into(),
         );
 
+        let mut deviant_event = None;
+
         for (frag_idx, frag) in fragments.iter().enumerate() {
             match frag {
                 Fragment::Literal(l) => {
@@ -181,7 +184,9 @@ impl EventRecord {
                     // Look for <event_name>:: convention
                     if frag_idx == 0 {
                         if let Some((n, rem)) = s.split_once("::") {
-                            name = n.trim().to_owned().into();
+                            let ev_name = n.trim();
+                            deviant_event = DeviantEventKind::from_event_name(ev_name);
+                            name = ev_name.to_owned().into();
                             s = rem;
                         }
                     }
@@ -219,7 +224,10 @@ impl EventRecord {
                         // SAFETY: decoder/frame already checks args and params
                         let arg = &f.args()[p.index];
                         match arg_to_attr_val(arg) {
-                            None => {
+                            Some(val) => {
+                                attributes.insert(Self::attr_key(&key), val);
+                            }
+                            None if deviant_event.is_none() => {
                                 warn!(
                                     formatted_string,
                                     attr_key = key,
@@ -227,8 +235,29 @@ impl EventRecord {
                                     "Unsupported arg type"
                                 );
                             }
-                            Some(val) => {
-                                attributes.insert(Self::attr_key(&key), val);
+                            None => {
+                                // We have a deviant event, special case handle the UUID slices
+                                match key.as_ref() {
+                                    "mutator.id" | "mutation.id" => {
+                                        if let Arg::Slice(uuid_bytes) = arg {
+                                            if let Ok(uuid) = Uuid::try_from(uuid_bytes.clone()) {
+                                                debug!(attr_key = key, attr_val = %uuid, "Found Deviant attribute");
+                                                attributes.insert(
+                                                    Self::attr_key(&key),
+                                                    uuid_to_integer_attr_val(&uuid),
+                                                );
+                                            } else {
+                                                warn!(attr_key = key, "Invalid UUID bytes");
+                                            }
+                                        } else {
+                                            warn!(
+                                                attr_key = key,
+                                                "Unsupported argument type for Deviant event"
+                                            );
+                                        }
+                                    }
+                                    _ => (),
+                                }
                             }
                         }
                     }
@@ -373,6 +402,35 @@ fn ts_from_arg(arg: &Arg<'_>) -> Option<u64> {
         Arg::Ixx(v) => u64::try_from(*v).ok()?,
         _ => return None,
     })
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub enum DeviantEventKind {
+    MutatorAnnounced,
+    MutatorRetired,
+    MutationCmdCommunicated,
+    MutationClearCommunicated,
+    MutationTriggered,
+    MutationInjected,
+}
+
+impl DeviantEventKind {
+    fn from_event_name(event_name: &str) -> Option<Self> {
+        use DeviantEventKind::*;
+        Some(match event_name {
+            "modality.mutator.announced" => MutatorAnnounced,
+            "modality.mutator.retired" => MutatorRetired,
+            "modality.mutation.command_communicated" => MutationCmdCommunicated,
+            "modality.mutation.clear_communicated" => MutationClearCommunicated,
+            "modality.mutation.triggered" => MutationTriggered,
+            "modality.mutation.injected" => MutationInjected,
+            _ => return None,
+        })
+    }
+}
+
+fn uuid_to_integer_attr_val(u: &Uuid) -> AttrVal {
+    i128::from_le_bytes(*u.as_bytes()).into()
 }
 
 #[cfg(test)]

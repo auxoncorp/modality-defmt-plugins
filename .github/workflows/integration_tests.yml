@@ -142,6 +142,7 @@ jobs:
           docker run \
             --name reflector \
             --network=host \
+            -e MODALITY_RUN_ID="$GITHUB_RUN_NUMBER" \
             -e RUST_LOG="modality_defmt=trace" \
             -e INGEST_PROTOCOL_PARENT_URL="modality-ingest://127.0.0.1" \
             -e MUTATION_PROTOCOL_PARENT_URL="modality-mutation://127.0.0.1" \

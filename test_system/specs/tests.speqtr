@@ -4,11 +4,11 @@
 # @rtos_mode = "rtic1"
 behavior "Basic Checks"
   prohibited case "Start event comes first"
-    AUXON_TRACE_START@init <- *@*
+    AUXON_TRACE_START @ init <- *@*
   end
 
   nominal case "Start event checks"
-    AUXON_TRACE_START@init (exists(_.version) AND exists(_.task) AND _.level = "trace") aggregate count() = 1
+    AUXON_TRACE_START @ init (exists(_.version) AND exists(_.task) AND _.level = "trace") aggregate count() = 1
   end
 end
 
@@ -40,13 +40,16 @@ behavior "Context Switching"
           -> AUXON_TASK_EXIT @ blinky
         # back on the ISR
         -> AUXON_CONTEXT_RETURN @ FREQM
+  end
 
+  recovery case "Mutation causes panic"
+      init -> panic @ consumer (_.msg = "*Message corruption!")
   end
 end
 
-behavior "System Shutdown"
+behavior "Nominal System Shutdown"
   nominal case "System panics when done"
-    panic @ consumer (_.level = "error") aggregate count() = 1
+    panic @ consumer (_.level = "error" AND _.msg = "*data == 6") aggregate count() = 1
   end
 end
 

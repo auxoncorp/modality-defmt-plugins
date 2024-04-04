@@ -18,7 +18,8 @@ mod app {
             IoSet3, Sercom0, Sercom3,
         },
     };
-    use defmt::{debug, info, warn};
+    use core::mem::MaybeUninit;
+    use defmt::{debug, info, trace, warn};
     use dwt_systick_monotonic::{DwtSystick, ExtU64};
 
     type Uart0Pads = uart::Pads<Sercom0, IoSet3, Pin<PA05, AlternateD>, Pin<PA04, AlternateD>>;
@@ -37,7 +38,26 @@ mod app {
     struct Local {
         uart0: Uart0,
         uart3: Uart3,
+        staged_mutation: Option<(DeviantUuid, DeviantUuid)>,
     }
+
+    /// Mutator/Mutation UUID byte array
+    type DeviantUuid = [u8; 16];
+
+    /// Deviant staged-mutation related.
+    /// These get initialized by renode on startup based on whether
+    /// or not a mutation is staged.
+    #[link_section = ".uninit.deviant0"]
+    #[no_mangle]
+    static mut DEVIANT_MUTATION_STAGED: MaybeUninit<u32> = MaybeUninit::uninit();
+
+    #[link_section = ".uninit.deviant1"]
+    #[no_mangle]
+    static mut DEVIANT_MUTATOR_ID: MaybeUninit<DeviantUuid> = MaybeUninit::uninit();
+
+    #[link_section = ".uninit.deviant2"]
+    #[no_mangle]
+    static mut DEVIANT_MUTATION_ID: MaybeUninit<DeviantUuid> = MaybeUninit::uninit();
 
     #[init]
     fn init(mut ctx: init::Context) -> (Shared, Local, init::Monotonics) {
@@ -90,9 +110,37 @@ mod app {
             crate::built_info::GIT_COMMIT_HASH.unwrap_or("NA"),
         );
 
+        // Handle staged deviant mutation, if one exists
+        let mutation_staged = unsafe { DEVIANT_MUTATION_STAGED.assume_init() };
+        let staged_mutation = if mutation_staged != 0 {
+            let mutator_id = unsafe { DEVIANT_MUTATOR_ID.assume_init() };
+            let mutation_id = unsafe { DEVIANT_MUTATION_ID.assume_init() };
+
+            // Write down announcement and communication in the log
+            trace!(
+                "modality.mutator.announced::mutator.id={=[u8; 16]}",
+                mutator_id
+            );
+            trace!("modality.mutation.command_communicated::mutation.success={=bool},mutator.id={=[u8; 16]},mutation.id={=[u8; 16]}",
+                true,
+                mutator_id,
+                mutation_id);
+            Some((mutator_id, mutation_id))
+        } else {
+            None
+        };
+
         blinky::spawn().unwrap();
 
-        (Shared {}, Local { uart0, uart3 }, init::Monotonics(mono))
+        (
+            Shared {},
+            Local {
+                uart0,
+                uart3,
+                staged_mutation,
+            },
+            init::Monotonics(mono),
+        )
     }
 
     #[idle]
@@ -129,12 +177,20 @@ mod app {
         data: u16,
     }
 
-    #[task(local = [data: u16 = 0])]
+    #[task(local = [data: u16 = 0, staged_mutation])]
     fn producer(ctx: producer::Context) {
         *ctx.local.data += 1;
-        let msg = IpcMessage {
+        let mut msg = IpcMessage {
             data: *ctx.local.data,
         };
+        if let Some((mutator_id, mutation_id)) = ctx.local.staged_mutation.take() {
+            // Write down the injection in the log
+            trace!("modality.mutation.injected::mutation.success={=bool},mutator.id={=[u8; 16]},mutation.id={=[u8; 16]}",
+                true,
+                mutator_id,
+                mutation_id);
+            msg.data = u16::MAX;
+        }
         info!("send_data::data={=u16}", msg.data);
         consumer::spawn(msg).ok();
     }
@@ -143,8 +199,10 @@ mod app {
     fn consumer(_ctx: consumer::Context, msg: IpcMessage) {
         info!("recv_data::data={=u16}", msg.data);
 
-        if msg.data == 6 {
-            panic!("data == 6");
+        match msg.data {
+            u16::MAX => panic!("Message corruption!"),
+            6 => panic!("data == 6"),
+            _ => (),
         }
     }
 }

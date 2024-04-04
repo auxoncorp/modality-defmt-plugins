@@ -1,2 +1,9 @@
 /target
 .gdb_history
+log.html
+logs/
+report.html
+robot_output.xml
+snapshots/
+results-tests.robot.xml
+.runids

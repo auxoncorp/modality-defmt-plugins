@@ -1,0 +1,15 @@
+[package]
+name = "mutator-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+auxon-sdk = { version = "1.2", features = ["modality", "deviant"] }
+clap = { version = "4.3", features = ["derive"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time", "io-util", "net", "fs", "signal", "process"] }
+thiserror = "1.0.43"
+url = { version = "2.1", features = ["serde"] }
+tracing-subscriber = "0.3"
+tracing = "0.1"
+serde = { version = "1.0", features=["derive"] }
+serde_json = { version = "1.0" }

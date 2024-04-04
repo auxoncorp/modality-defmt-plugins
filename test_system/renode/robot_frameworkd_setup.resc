@@ -1,0 +1,41 @@
+:name: atsamd-rtic
+:description: Runs the example firmware in Renode
+
+using sysbus
+
+mach create "atsamd"
+
+include @renode/RttReader.cs
+include @renode/commands.py
+
+$bin = @target/thumbv7em-none-eabihf/release/atsamd-rtic-firmware
+
+machine LoadPlatformDescription @renode/atsamd51g19a.repl
+machine LoadPlatformDescriptionFromString
+"""
+sercom0: UART.SAMD5_UART @ sysbus 0x40003000
+    ->nvic@48
+"""
+
+sysbus.nvic Frequency 10000000000
+emulation CreateUARTHub "uarthub"
+connector Connect sercom0 uarthub
+connector Connect sercom3 uarthub
+machine CreateRttReader
+RttReader CreateFileBackend @/tmp/rtt_log.bin true
+logLevel 3 sercom0
+logLevel 3 sercom3
+logLevel 3 sysbus
+logLevel 3 nvic
+logLevel 3 dwt
+logLevel -1 RttReader
+RttReader Start
+
+macro reset
+"""
+    sysbus LoadELF $bin
+"""
+
+runMacro $reset
+
+clear_deviant_noint_vars
