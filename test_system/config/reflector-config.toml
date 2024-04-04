@@ -7,6 +7,9 @@ additional-timeline-attributes = [
     "ci_commit='${GITHUB_SHA-local}'",
     "ci_git_commit='${GIT_COMMIT-local}'",
 ]
+override-timeline-attributes = [
+    "run_id='${MODALITY_RUN_ID-1}'",
+]
 
 [plugins.ingest.importers.defmt]
 additional-timeline-attributes = [
