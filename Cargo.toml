@@ -1,6 +1,6 @@
 [package]
 name = "modality-defmt-plugins"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Jon Lamb <jon@auxon.io>"]
 description = "A Modality reflector plugin suite for defmt data"
