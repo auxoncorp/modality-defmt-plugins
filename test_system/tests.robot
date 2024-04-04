@@ -64,7 +64,7 @@ Start Mutator Server
 Create Mutation
     Run Command                     deviant mutation create
     ${result}                       Run Command         netcat -W 1 127.0.0.1 ${MUTATOR_SERVER_PORT}
-    ${deviant_ids}                  Evaluate     json.loads("""${result.stdout}""")    json
+    ${deviant_ids}                  Evaluate            json.loads("""${result.stdout}""")    json
     Set Test Variable               ${MUTATOR_ID}       ${deviant_ids['mutator_id']}
     Set Test Variable               ${MUTATION_ID}      ${deviant_ids['mutation_id']}
 
@@ -82,7 +82,7 @@ Nominal System Execution
     [Documentation]                 Boots the system and runs for a period of time
     [Tags]                          firmware
 
-    Execute Command                 emulation RunFor "00:00:12"
+    Execute Command                 emulation RunFor "00:00:15"
     Import Data
     Evaluate Specs
 
