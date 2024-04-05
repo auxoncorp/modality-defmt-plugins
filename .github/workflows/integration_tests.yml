@@ -96,6 +96,7 @@ jobs:
             --name modalityd \
             --network=host \
             -v "$(pwd)/modalityd_data:/data-dir" \
+            -e RUST_LOG=trace \
             -e MODALITY_ACCEPT_EULA=Y \
             -e MODALITY_LICENSE_KEY="${{secrets.MODALITY_LICENSE_KEY}}" \
             -e NO_TLS=Y \
@@ -143,7 +144,7 @@ jobs:
             --name reflector \
             --network=host \
             -e MODALITY_RUN_ID="$GITHUB_RUN_NUMBER" \
-            -e RUST_LOG="modality_defmt=trace" \
+            -e RUST_LOG=trace \
             -e INGEST_PROTOCOL_PARENT_URL="modality-ingest://127.0.0.1" \
             -e MUTATION_PROTOCOL_PARENT_URL="modality-mutation://127.0.0.1" \
             -v "/usr/lib/modality-reflector-plugins:/usr/lib/modality-reflector-plugins" \
@@ -180,6 +181,7 @@ jobs:
           tarfile=defmt_test_system_modality_data_${datetime}.tar.gz
           echo TARBALL_NAME=${tarfile} >> $GITHUB_ENV
 
+          docker logs modalityd >& modalityd_data/modalityd.log
           time docker container stop -s SIGTERM -t 20 modalityd
           modality user auth-token > modalityd_data/user_auth_token
           cp /tmp/rtt_log.bin modalityd_data/

@@ -37,6 +37,7 @@ Run Command
     [Arguments]                     ${cmd_and_args}
     ${result} =                     Run Process         ${cmd_and_args}  shell=true
     IF                              ${result.rc} != 0
+        Log To Console              Error running command: ${cmd_and_args}    console=yes
         Log To Console              ${result.stdout}    console=yes
         Log To Console              ${result.stderr}    console=yes
     END
@@ -70,12 +71,13 @@ Create Mutation
 
 Import Data
     ${runid}                        Run Command         ${RUN_ID_SCRIPT} "${TEST NAME}"
-    Set environment variable        MODALITY_RUN_ID     "${TEST NAME}::${runid.stdout}"
+    Set Test Variable               ${SEGMENT}          ${TEST NAME}::${runid.stdout}
+    Set environment variable        MODALITY_RUN_ID     ${SEGMENT}
     Run Command                     modality-reflector import --config ${REFLECTOR_CONFIG} defmt --elf-file ${FW_ELF} ${RTT_LOG}
     Run Command                     modality workspace sync-indices
 
 Evaluate Specs
-    Run Command                     conform spec eval --name ${SPEC_NAME}
+    Run Command                     conform spec eval --name ${SPEC_NAME} --segment '${SEGMENT}'
 
 *** Test Cases ***
 Nominal System Execution
