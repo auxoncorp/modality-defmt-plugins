@@ -1,8 +1,7 @@
 use crate::Error;
+use auxon_sdk::api::{AttrVal, BigInt, Nanoseconds, TimelineId, Uuid};
 use defmt_decoder::{Arg, Frame, Location};
 use defmt_parser::{Fragment, ParserMode};
-use modality_api::Uuid;
-use modality_api::{AttrVal, BigInt, Nanoseconds, TimelineId};
 use std::collections::BTreeMap;
 use tracing::{debug, warn};
 

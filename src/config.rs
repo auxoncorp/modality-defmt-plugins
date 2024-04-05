@@ -1,7 +1,9 @@
 use crate::opts::{DefmtOpts, ReflectorOpts, RtosMode};
+use auxon_sdk::{
+    auth_token::AuthToken,
+    reflector_config::{Config, TomlValue, TopLevelIngest, CONFIG_ENV_VAR},
+};
 use derive_more::{Deref, From, Into};
-use modality_auth_token::AuthToken;
-use modality_reflector_config::{Config, TomlValue, TopLevelIngest, CONFIG_ENV_VAR};
 use serde::Deserialize;
 use std::env;
 use std::path::{Path, PathBuf};
@@ -11,10 +13,10 @@ use url::Url;
 #[derive(Debug, thiserror::Error)]
 pub enum AuthTokenError {
     #[error(transparent)]
-    StringDeserialization(#[from] modality_auth_token::AuthTokenStringDeserializationError),
+    StringDeserialization(#[from] auxon_sdk::auth_token::AuthTokenStringDeserializationError),
 
     #[error(transparent)]
-    LoadAuthTokenError(#[from] modality_auth_token::LoadAuthTokenError),
+    LoadAuthTokenError(#[from] auxon_sdk::auth_token::LoadAuthTokenError),
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
@@ -130,9 +132,9 @@ impl DefmtConfig {
         defmt_opts: DefmtOpts,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let cfg = if let Some(cfg_path) = &rf_opts.config_file {
-            modality_reflector_config::try_from_file(cfg_path)?
+            auxon_sdk::reflector_config::try_from_file(cfg_path)?
         } else if let Ok(env_path) = env::var(CONFIG_ENV_VAR) {
-            modality_reflector_config::try_from_file(Path::new(&env_path))?
+            auxon_sdk::reflector_config::try_from_file(Path::new(&env_path))?
         } else {
             Config::default()
         };
@@ -183,7 +185,9 @@ impl DefmtConfig {
 
     pub fn resolve_auth(&self) -> Result<AuthToken, AuthTokenError> {
         if let Some(auth_token_hex) = self.auth_token.as_deref() {
-            Ok(modality_auth_token::decode_auth_token_hex(auth_token_hex)?)
+            Ok(auxon_sdk::auth_token::decode_auth_token_hex(
+                auth_token_hex,
+            )?)
         } else {
             Ok(AuthToken::load()?)
         }
@@ -288,7 +292,7 @@ impl PluginConfig {
 #[cfg(test)]
 mod test {
     use super::*;
-    use modality_reflector_config::{AttrKeyEqValuePair, TimelineAttributes};
+    use auxon_sdk::reflector_config::{AttrKeyEqValuePair, TimelineAttributes};
     use pretty_assertions::assert_eq;
     use std::{env, fs::File, io::Write};
 

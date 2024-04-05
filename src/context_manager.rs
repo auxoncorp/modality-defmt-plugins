@@ -1,5 +1,5 @@
 use crate::{Error, EventRecord, PluginConfig, RtosMode};
-use modality_api::{AttrVal, BigInt, TimelineId};
+use auxon_sdk::api::{AttrVal, BigInt, TimelineId};
 use std::collections::BTreeMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use tracing::{debug, trace, warn};
@@ -537,7 +537,7 @@ mod rtic1 {
 mod test {
     use super::*;
     use crate::opts::RtosMode;
-    use modality_api::BigInt;
+    use auxon_sdk::api::BigInt;
     use pretty_assertions::assert_eq;
     use tracing_test::traced_test;
 

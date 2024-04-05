@@ -153,6 +153,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
+name = "auxon-sdk"
+version = "1.2.1"
+source = "git+https://github.com/auxoncorp/auxon-sdk.git?branch=client-utils#e19c4578e269a279ba17d3f0dcd18437187e8baa"
+dependencies = [
+ "clap",
+ "dirs",
+ "exitcode",
+ "futures",
+ "hex",
+ "lazy_static",
+ "minicbor",
+ "native-tls",
+ "nix 0.26.4",
+ "ordered-float",
+ "regex",
+ "serde",
+ "thiserror",
+ "tokio",
+ "tokio-native-tls",
+ "toml 0.5.11",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -870,10 +897,46 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6d5a32815ae3f33302d95fdcb2ce17862f8c65363dcfd29360480ba1001fc9c"
 
 [[package]]
+name = "futures"
+version = "0.3.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "645c6916888f6cb6350d2550b80fb63e734897a8498abe35cfb732b6487804b0"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "futures-executor",
+ "futures-io",
+ "futures-sink",
+ "futures-task",
+ "futures-util",
+]
+
+[[package]]
+name = "futures-channel"
+version = "0.3.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eac8f7d7865dcb88bd4373ab671c8cf4508703796caa2b1985a9ca867b3fcb78"
+dependencies = [
+ "futures-core",
+ "futures-sink",
+]
+
+[[package]]
 name = "futures-core"
 version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfc6580bb841c5a68e9ef15c77ccc837b40a7504914d52e47b8b0e9bbda25a1d"
+
+[[package]]
+name = "futures-executor"
+version = "0.3.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a576fc72ae164fca6b9db127eaa9a9dda0d61316034f33a0a0d4eda41f02b01d"
+dependencies = [
+ "futures-core",
+ "futures-task",
+ "futures-util",
+]
 
 [[package]]
 name = "futures-io"
@@ -892,6 +955,47 @@ dependencies = [
  "futures-io",
  "parking",
  "pin-project-lite",
+]
+
+[[package]]
+name = "futures-macro"
+version = "0.3.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87750cf4b7a4c0625b1529e4c543c2182106e4dedc60a2a6455e00d212c489ac"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.52",
+]
+
+[[package]]
+name = "futures-sink"
+version = "0.3.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fb8e00e87438d937621c1c6269e53f536c14d3fbd6a042bb24879e57d474fb5"
+
+[[package]]
+name = "futures-task"
+version = "0.3.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38d84fa142264698cdce1a9f9172cf383a0c82de1bddcf3092901442c4097004"
+
+[[package]]
+name = "futures-util"
+version = "0.3.30"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d6401deb83407ab3da39eba7e33987a73c3df0c82b4bb5813ee871c19c41d48"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "futures-io",
+ "futures-macro",
+ "futures-sink",
+ "futures-task",
+ "memchr",
+ "pin-project-lite",
+ "pin-utils",
+ "slab",
 ]
 
 [[package]]
@@ -1265,6 +1369,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "523dc4f511e55ab87b694dc30d0f820d60906ef06413f93d4d7a1385599cc149"
 
 [[package]]
+name = "memoffset"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5de893c32cde5f383baa4c04c5d6dbdd735cfd4a794b0debdb2bb1b421da5ff4"
+dependencies = [
+ "autocfg",
+]
+
+[[package]]
 name = "miette"
 version = "5.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1343,44 +1456,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "modality-api"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "294614fb4a07f458e77ba9475ce63c9b676bcf0b55ceccae71ac4964dd04fc17"
-dependencies = [
- "minicbor",
- "ordered-float",
- "thiserror",
- "uuid",
-]
-
-[[package]]
-name = "modality-auth-token"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc09a3c4f29de19eb92df42b9369c4c7929b37ab1cde911243fe4f03756cdc42"
-dependencies = [
- "dirs",
- "hex",
- "thiserror",
-]
-
-[[package]]
-name = "modality-auth-token"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fbd3f6b291b19431b4dbaab7a73788e4778908a175c8e024c0a563de2b78dc6"
-dependencies = [
- "dirs",
- "hex",
- "thiserror",
-]
-
-[[package]]
 name = "modality-defmt-plugins"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "auxon-sdk",
  "clap",
  "clap-stdin",
  "ctrlc",
@@ -1390,11 +1470,6 @@ dependencies = [
  "exitcode",
  "goblin",
  "humantime",
- "modality-api",
- "modality-auth-token 0.2.0",
- "modality-ingest-client",
- "modality-ingest-protocol",
- "modality-reflector-config",
  "pretty_assertions",
  "probe-rs",
  "serde",
@@ -1407,55 +1482,6 @@ dependencies = [
  "tracing-test",
  "url",
  "uuid",
-]
-
-[[package]]
-name = "modality-ingest-client"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7236aecfb23dcd4a9d2771bfa79cfc77686d742190c650e518f9968ed4af6eba"
-dependencies = [
- "minicbor",
- "modality-api",
- "modality-auth-token 0.1.1",
- "modality-ingest-protocol",
- "modality-reflector-config",
- "native-tls",
- "ordered-float",
- "thiserror",
- "tokio",
- "tokio-native-tls",
- "tracing",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "modality-ingest-protocol"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "021a4aef304f4a86336f4da540e4967805870e8c177f71f3f10c8d6b07161066"
-dependencies = [
- "minicbor",
- "modality-api",
-]
-
-[[package]]
-name = "modality-reflector-config"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "056025ca3c0a195526939e35b489e12b92357cbce2e406f5aa922e3f28c934c8"
-dependencies = [
- "dirs",
- "lazy_static",
- "modality-api",
- "modality-auth-token 0.1.1",
- "regex",
- "serde",
- "thiserror",
- "toml 0.5.11",
- "tracing",
- "url",
 ]
 
 [[package]]
@@ -1485,6 +1511,8 @@ dependencies = [
  "bitflags 1.3.2",
  "cfg-if",
  "libc",
+ "memoffset",
+ "pin-utils",
 ]
 
 [[package]]
@@ -1632,9 +1660,9 @@ dependencies = [
 
 [[package]]
 name = "ordered-float"
-version = "2.10.1"
+version = "3.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68f19d67e5a2795c94e73e0bb1cc1a7edeb2e28efd39e2e1c9b7a40c1108b11c"
+checksum = "f1e1c390732d15f1d48471625cd92d154e66db2c56645e29a9cd26f4699f72dc"
 dependencies = [
  "num-traits",
 ]
@@ -1683,6 +1711,12 @@ name = "pin-project-lite"
 version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8afb450f006bf6385ca15ef45d71d2288452bc3683ce2e2cacc0d18e4be60b58"
+
+[[package]]
+name = "pin-utils"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "pkg-config"

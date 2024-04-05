@@ -1,14 +1,15 @@
 use crate::Error;
-use modality_api::{AttrVal, TimelineId};
-use modality_ingest_client::dynamic::DynamicIngestClient;
-use modality_ingest_client::{IngestClient, ReadyState};
-use modality_ingest_protocol::InternedAttrKey;
+use auxon_sdk::{
+    api::{AttrVal, TimelineId},
+    ingest_client::{dynamic::DynamicIngestClient, IngestClient, ReadyState},
+    ingest_protocol::InternedAttrKey,
+};
 use std::collections::BTreeMap;
 
 pub struct Client {
     timeline_keys: BTreeMap<String, InternedAttrKey>,
     event_keys: BTreeMap<String, InternedAttrKey>,
-    inner: DynamicIngestClient,
+    pub(crate) inner: DynamicIngestClient,
 }
 
 impl Client {

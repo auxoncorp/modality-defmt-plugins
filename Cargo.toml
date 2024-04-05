@@ -30,21 +30,17 @@ derive_more = "0.99"
 url = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 humantime = "2"
-serde = { version = "1.0", features=["derive"] }
+serde = { version = "1.0", features = ["derive"] }
 serde_with = "3.6"
 probe-rs = "0.23"
-defmt-decoder = { git = "https://github.com/auxoncorp/defmt.git", branch = "decoder-changes", features=["unstable"] }
-defmt-parser = { git = "https://github.com/auxoncorp/defmt.git", branch = "decoder-changes", features=["unstable"] }
+defmt-decoder = { git = "https://github.com/auxoncorp/defmt.git", branch = "decoder-changes", features = ["unstable"] }
+defmt-parser = { git = "https://github.com/auxoncorp/defmt.git", branch = "decoder-changes", features = ["unstable"] }
 goblin = "0.8"
 clap = { version = "4.5", features = ["derive", "env", "color"] }
 clap-stdin = "0.4"
-ctrlc = { version = "3.4", features=["termination"] }
+ctrlc = { version = "3.4", features = ["termination"] }
 exitcode = "1"
-modality-api = "0.2"
-modality-ingest-client = "0.3"
-modality-ingest-protocol = "0.2"
-modality-reflector-config = "0.3"
-modality-auth-token = "0.2"
+auxon-sdk = { version = "1.2", features = ["modality"] }
 
 [dev-dependencies]
 tempfile = "3.10"
@@ -57,3 +53,4 @@ strip="debuginfo"
 
 [patch.crates-io]
 nusb = { git = "https://github.com/jonlamb-gh/nusb.git", branch = "update-ioctl-code" }
+auxon-sdk = { git = "https://github.com/auxoncorp/auxon-sdk.git", branch = "client-utils" }

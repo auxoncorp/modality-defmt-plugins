@@ -31,13 +31,13 @@ pub enum Error {
     Io(#[from] io::Error),
 
     #[error("Encountered an ingest client error. {0}")]
-    Ingest(#[from] modality_ingest_client::IngestError),
+    Ingest(#[from] auxon_sdk::ingest_client::IngestError),
 
     #[error("Encountered an ingest client error. {0}")]
-    DynamicIngest(#[from] modality_ingest_client::dynamic::DynamicIngestError),
+    DynamicIngest(#[from] auxon_sdk::ingest_client::dynamic::DynamicIngestError),
 
     #[error("Encountered an ingest client initialization error. {0}")]
-    IngestClientInitialization(#[from] modality_ingest_client::IngestClientInitializationError),
+    IngestClientInitialization(#[from] auxon_sdk::ingest_client::IngestClientInitializationError),
 
     #[error("Failed to authenticate. {0}")]
     Auth(#[from] crate::config::AuthTokenError),
