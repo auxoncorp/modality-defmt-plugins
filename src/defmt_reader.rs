@@ -2,8 +2,8 @@ use crate::{
     Client, ContextEvent, ContextManager, DefmtConfig, Error, EventRecord, Interruptor,
     TimelineAttributes, TimelineMeta,
 };
+use auxon_sdk::ingest_client::IngestClient;
 use defmt_decoder::{DecodeError, Table};
-use modality_ingest_client::IngestClient;
 use std::collections::{BTreeMap, BTreeSet};
 use std::{fs, io::Read, time::Duration};
 use tracing::{debug, warn};
@@ -198,6 +198,17 @@ pub async fn run<R: Read + Send>(
         client
             .send_event(last_event.global_ordering, last_event.record.attributes())
             .await?;
+    }
+
+    client.inner.flush().await?;
+
+    if let Ok(status) = client.inner.status().await {
+        debug!(
+            events_received = status.events_received,
+            events_written = status.events_written,
+            events_pending = status.events_pending,
+            "Ingest status"
+        );
     }
 
     if let Some(res) = maybe_read_result {
