@@ -202,6 +202,15 @@ pub async fn run<R: Read + Send>(
 
     client.inner.flush().await?;
 
+    if let Ok(status) = client.inner.status().await {
+        debug!(
+            events_received = status.events_received,
+            events_written = status.events_written,
+            events_pending = status.events_pending,
+            "Ingest status"
+        );
+    }
+
     if let Some(res) = maybe_read_result {
         res
     } else {
