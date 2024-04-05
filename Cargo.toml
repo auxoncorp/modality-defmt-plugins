@@ -40,7 +40,7 @@ clap = { version = "4.5", features = ["derive", "env", "color"] }
 clap-stdin = "0.4"
 ctrlc = { version = "3.4", features = ["termination"] }
 exitcode = "1"
-auxon-sdk = { version = "1.2", features = ["modality"] }
+auxon-sdk = { version = "1.3", features = ["modality"] }
 
 [dev-dependencies]
 tempfile = "3.10"
@@ -53,4 +53,3 @@ strip="debuginfo"
 
 [patch.crates-io]
 nusb = { git = "https://github.com/jonlamb-gh/nusb.git", branch = "update-ioctl-code" }
-auxon-sdk = { git = "https://github.com/auxoncorp/auxon-sdk.git", branch = "client-utils" }

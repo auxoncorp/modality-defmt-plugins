@@ -154,8 +154,9 @@ checksum = "f1fdabc7756949593fe60f30ec81974b613357de856987752631dea1e3394c80"
 
 [[package]]
 name = "auxon-sdk"
-version = "1.2.1"
-source = "git+https://github.com/auxoncorp/auxon-sdk.git?branch=client-utils#7a090757f88315ceb15c793ceac07925ae732a12"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be0d0b26afa501bb675768c90335c5517946485dddf678056a878d6020c5f5c8"
 dependencies = [
  "clap",
  "dirs",
