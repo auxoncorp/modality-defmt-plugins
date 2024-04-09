@@ -1,4 +1,7 @@
-use crate::opts::{DefmtOpts, ReflectorOpts, RtosMode};
+use crate::{
+    opts::{DefmtOpts, ReflectorOpts, RtosMode},
+    time::Rate,
+};
 use auxon_sdk::{
     auth_token::AuthToken,
     reflector_config::{Config, TomlValue, TopLevelIngest, CONFIG_ENV_VAR},
@@ -40,6 +43,7 @@ pub struct PluginConfig {
     pub clock_id: Option<String>,
     pub init_task_name: Option<String>,
     pub disable_interactions: bool,
+    pub clock_rate: Option<Rate>,
     pub rtos_mode: RtosMode,
     pub elf_file: Option<PathBuf>,
 
@@ -161,6 +165,7 @@ impl DefmtConfig {
             } else {
                 cfg_plugin.disable_interactions
             },
+            clock_rate: defmt_opts.clock_rate.or(cfg_plugin.clock_rate),
             rtos_mode: defmt_opts.rtos_mode.unwrap_or(cfg_plugin.rtos_mode),
             elf_file: cfg_plugin.elf_file, // NOTE: plugin opts handling may override this
             import: cfg_plugin.import,
@@ -205,6 +210,7 @@ mod internal {
         pub clock_id: Option<String>,
         pub init_task_name: Option<String>,
         pub disable_interactions: bool,
+        pub clock_rate: Option<Rate>,
         pub rtos_mode: RtosMode,
         pub elf_file: Option<PathBuf>,
     }
@@ -217,6 +223,7 @@ mod internal {
                 clock_id: c.clock_id,
                 init_task_name: c.init_task_name,
                 disable_interactions: c.disable_interactions,
+                clock_rate: c.clock_rate,
                 rtos_mode: c.rtos_mode,
                 elf_file: c.elf_file,
                 import: Default::default(),
@@ -311,6 +318,7 @@ clock-id = 'a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3'
 init-task-name = 'main'
 disable-interactions = true
 rtos-mode = "rtic1"
+clock-rate = "1/1000000"
 elf-file = "fw.elf"
 open-timeout = "100ms"
 file = "rtt_log.bin"
@@ -333,6 +341,7 @@ init-task-name = 'fw'
 disable-interactions = true
 rtos-mode = "rtic1"
 elf-file = "fw.elf"
+clock-rate = "1/2000000"
 attach-timeout = "100ms"
 up-channel = 1
 control-block-address = 0xFFFFF
@@ -405,6 +414,7 @@ chip-description-path = "/tmp/stm32.yaml"
                     init_task_name: "main".to_owned().into(),
                     disable_interactions: true,
                     rtos_mode: RtosMode::Rtic1,
+                    clock_rate: Some(Rate::new(1, 1000000).unwrap()),
                     elf_file: PathBuf::from("fw.elf").into(),
                     import: ImportConfig {
                         open_timeout: HumanTime::from_str("100ms").unwrap().into(),
@@ -447,6 +457,7 @@ chip-description-path = "/tmp/stm32.yaml"
                     init_task_name: "fw".to_owned().into(),
                     disable_interactions: true,
                     rtos_mode: RtosMode::Rtic1,
+                    clock_rate: Some(Rate::new(1, 2000000).unwrap()),
                     elf_file: PathBuf::from("fw.elf").into(),
                     import: Default::default(),
                     rtt_collector: RttCollectorConfig {

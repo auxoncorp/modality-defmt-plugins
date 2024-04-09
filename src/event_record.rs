@@ -1,4 +1,4 @@
-use crate::Error;
+use crate::{Error, Rate};
 use auxon_sdk::api::{AttrVal, BigInt, Nanoseconds, TimelineId, Uuid};
 use defmt_decoder::{Arg, Frame, Location};
 use defmt_parser::{Fragment, ParserMode};
@@ -9,6 +9,7 @@ pub type EventAttributes = BTreeMap<String, AttrVal>;
 
 #[derive(Debug)]
 pub struct EventRecord {
+    timestamp: Option<Timestamp>,
     attributes: EventAttributes,
 }
 
@@ -25,12 +26,19 @@ impl EventRecord {
     }
 
     pub(crate) fn new(attributes: EventAttributes) -> Self {
-        Self { attributes }
+        Self {
+            timestamp: None,
+            attributes,
+        }
     }
 
     #[cfg(test)]
-    pub(crate) fn from_iter(attrs: impl IntoIterator<Item = (String, AttrVal)>) -> Self {
+    pub(crate) fn from_iter(
+        timestamp: Option<Timestamp>,
+        attrs: impl IntoIterator<Item = (String, AttrVal)>,
+    ) -> Self {
         Self {
+            timestamp,
             attributes: attrs.into_iter().collect(),
         }
     }
@@ -108,14 +116,23 @@ impl EventRecord {
         }
     }
 
-    pub(crate) fn timestamp_raw(&self) -> Option<u64> {
-        let v = self.attributes.get("event.internal.defmt.timestamp")?;
-        // We only support u64-friendly timestamps atm
-        Some(match v {
-            AttrVal::BigInt(v) => *v.as_ref() as u64,
-            AttrVal::Integer(v) => *v as u64,
-            _ => return None,
-        })
+    pub(crate) fn timestamp(&self) -> Option<Timestamp> {
+        self.timestamp
+    }
+
+    pub(crate) fn set_internal_raw_timestamp(&mut self, ts: u64) {
+        self.attributes
+            .insert(Self::internal_attr_key("timestamp.raw"), ts.into());
+    }
+
+    pub(crate) fn set_internal_timestamp(&mut self, ts: u64) {
+        self.attributes
+            .insert(Self::internal_attr_key("timestamp"), ts.into());
+    }
+
+    pub(crate) fn set_timestamp(&mut self, ts: Nanoseconds) {
+        self.attributes
+            .insert(Self::attr_key("timestamp"), ts.into());
     }
 
     #[cfg(test)]
@@ -132,6 +149,43 @@ impl EventRecord {
         &self.attributes
     }
 
+    pub(crate) fn auxon_instant(&self) -> Option<u64> {
+        let v = self.attributes.get("event.instant")?;
+        match v {
+            AttrVal::Integer(i) => u64::try_from(*i).ok(),
+            AttrVal::BigInt(i) => {
+                let i: &i128 = i.as_ref();
+                u64::try_from(*i).ok()
+            }
+            _ => None,
+        }
+    }
+
+    pub(crate) fn set_auxon_instant(&mut self, raw: u64, ns: Nanoseconds) {
+        self.attributes
+            .insert(Self::internal_attr_key("instant.raw"), raw.into());
+        self.attributes.insert(Self::attr_key("instant"), ns.into());
+    }
+
+    pub(crate) fn auxon_duration(&self) -> Option<u64> {
+        let v = self.attributes.get("event.duration")?;
+        match v {
+            AttrVal::Integer(i) => u64::try_from(*i).ok(),
+            AttrVal::BigInt(i) => {
+                let i: &i128 = i.as_ref();
+                u64::try_from(*i).ok()
+            }
+            _ => None,
+        }
+    }
+
+    pub(crate) fn set_auxon_duration(&mut self, raw: u64, ns: Nanoseconds) {
+        self.attributes
+            .insert(Self::internal_attr_key("duration.raw"), raw.into());
+        self.attributes
+            .insert(Self::attr_key("duration"), ns.into());
+    }
+
     pub fn from_frame(f: Frame<'_>, location: Option<&Location>) -> Result<Self, Error> {
         let fragments = defmt_parser::parse(f.format(), ParserMode::ForwardsCompatible)?;
 
@@ -141,7 +195,9 @@ impl EventRecord {
 
         let formatted_string = f.format_args(f.format(), f.args(), None).replace('\n', " ");
 
-        if let Some(ts) = Timestamp::from_frame(&f) {
+        // NOTE: context manager will update these when doing rollover tracking
+        // and/or time conversions
+        let timestamp = if let Some(ts) = Timestamp::from_frame(&f) {
             attributes.insert(
                 Self::internal_attr_key("timestamp.type"),
                 ts.typ_str().into(),
@@ -150,7 +206,10 @@ impl EventRecord {
             if let Some(ns) = ts.as_nanoseconds() {
                 attributes.insert(Self::attr_key("timestamp"), ns.into());
             }
-        }
+            Some(ts)
+        } else {
+            None
+        };
 
         if let Some(loc) = location {
             attributes.insert(
@@ -271,7 +330,10 @@ impl EventRecord {
             attributes.insert(Self::attr_key("name"), formatted_string.clone().into());
         }
 
-        Ok(EventRecord { attributes })
+        Ok(EventRecord {
+            timestamp,
+            attributes,
+        })
     }
 }
 
@@ -324,12 +386,15 @@ fn extract_literal_key_value_pairs(s: &str) -> BTreeMap<String, AttrVal> {
     pairs
 }
 
-#[derive(Debug, Copy, Clone)]
-enum Timestamp {
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub enum Timestamp {
     Micros(u64),
     Millis(u64),
     Seconds(u64),
-    Ticks(u64),
+    Ticks64(u64),
+    Ticks32(u32),
+    Ticks16(u16),
+    Ticks8(u8),
 }
 
 impl Timestamp {
@@ -362,14 +427,56 @@ impl Timestamp {
                 warn!("Unsupported timestamp format hint, only us, ms, ts, tms, and tus are supported");
                 return None;
             }
-            None => Timestamp::Ticks(ts),
+            None => {
+                if fmt.contains("u8") {
+                    let ts8 = u8::try_from(ts).expect("Type mismatch, defmt::timestamp! macro should have produced a compiler error");
+                    Timestamp::Ticks8(ts8)
+                } else if fmt.contains("u16") {
+                    let ts16 = u16::try_from(ts).expect("Type mismatch, defmt::timestamp! macro should have produced a compiler error");
+                    Timestamp::Ticks16(ts16)
+                } else if fmt.contains("u32") {
+                    let ts32 = u32::try_from(ts).expect("Type mismatch, defmt::timestamp! macro should have produced a compiler error");
+                    Timestamp::Ticks32(ts32)
+                } else {
+                    Timestamp::Ticks64(ts)
+                }
+            }
         })
     }
 
-    fn as_u64(&self) -> u64 {
+    pub(crate) fn supports_rollover_tracking(&self) -> bool {
         use Timestamp::*;
         match self {
-            Micros(v) | Millis(v) | Seconds(v) | Ticks(v) => *v,
+            Micros(_) | Millis(_) | Seconds(_) | Ticks64(_) => false,
+            Ticks32(_) | Ticks16(_) | Ticks8(_) => true,
+        }
+    }
+
+    pub(crate) fn has_time_base(&self) -> bool {
+        use Timestamp::*;
+        match self {
+            Micros(_) | Millis(_) | Seconds(_) => true,
+            Ticks64(_) | Ticks32(_) | Ticks16(_) | Ticks8(_) => false,
+        }
+    }
+
+    pub(crate) fn intrinsic_clock_rate(&self) -> Option<Rate> {
+        use Timestamp::*;
+        match self {
+            Micros(_) => Rate::new(1, 1_000_000),
+            Millis(_) => Rate::new(1, 1_000),
+            Seconds(_) => Rate::new(1, 1),
+            Ticks64(_) | Ticks32(_) | Ticks16(_) | Ticks8(_) => None,
+        }
+    }
+
+    pub(crate) fn as_u64(&self) -> u64 {
+        use Timestamp::*;
+        match self {
+            Micros(v) | Millis(v) | Seconds(v) | Ticks64(v) => *v,
+            Ticks32(v) => (*v).into(),
+            Ticks16(v) => (*v).into(),
+            Ticks8(v) => (*v).into(),
         }
     }
 
@@ -379,7 +486,7 @@ impl Timestamp {
             Micros(v) => v.checked_mul(1_000),
             Millis(v) => v.checked_mul(1_000_000),
             Seconds(v) => v.checked_mul(1_000_000_000),
-            Ticks(_) => return None,
+            _ => return None,
         }
         .map(Nanoseconds::from)
     }
@@ -390,7 +497,10 @@ impl Timestamp {
             Micros(_) => "us",
             Millis(_) => "ms",
             Seconds(_) => "s",
-            Ticks(_) => "ticks",
+            Ticks64(_) => "ticks64",
+            Ticks32(_) => "ticks32",
+            Ticks16(_) => "ticks16",
+            Ticks8(_) => "ticks8",
         }
     }
 }
@@ -616,5 +726,21 @@ mod test {
         );
         assert_eq!(attrs[8], ("event.queue_index".to_owned(), 1_u8.into()));
         assert_eq!(attrs[9], ("event.task".to_owned(), "blinky_blue".into()));
+    }
+
+    #[test]
+    fn timestamps() {
+        assert_eq!(
+            Timestamp::Micros(10).as_nanoseconds(),
+            Some(Nanoseconds::from(10_000))
+        );
+        assert_eq!(
+            Timestamp::Millis(10).as_nanoseconds(),
+            Some(Nanoseconds::from(10_000_000))
+        );
+        assert_eq!(
+            Timestamp::Seconds(10).as_nanoseconds(),
+            Some(Nanoseconds::from(10_000_000_000))
+        );
     }
 }

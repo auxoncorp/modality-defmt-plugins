@@ -1,4 +1,4 @@
-use crate::{Error, EventRecord, PluginConfig, RtosMode};
+use crate::{Error, EventRecord, PluginConfig, RtosMode, Timestamp, TrackingInstant};
 use auxon_sdk::api::{AttrVal, BigInt, TimelineId};
 use std::collections::BTreeMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -26,12 +26,19 @@ pub struct ContextEvent {
 pub struct ContextManager {
     cfg: PluginConfig,
     common_timeline_attrs: TimelineAttributes,
+
     global_ordering: u128,
     // NOTE: event counter doesn't increment for synthetic events
     event_counter: u64,
-    last_timestamp: Option<u64>,
+
+    last_raw_timestamp: Option<u64>,
+    tracking_timestamp8: TrackingInstant<u8>,
+    tracking_timestamp16: TrackingInstant<u16>,
+    tracking_timestamp32: TrackingInstant<u32>,
+
     /// Set when the first EventRecord is the start event in RTOS mode
     integration_version: Option<u16>,
+
     pending_context_switch_interaction: Option<ContextSwitchInteraction>,
     /// Invariant: always contains the root context as the first element
     context_stack: Vec<ContextId>,
@@ -51,7 +58,10 @@ impl ContextManager {
             common_timeline_attrs,
             global_ordering: 0,
             event_counter: 0,
-            last_timestamp: None,
+            last_raw_timestamp: None,
+            tracking_timestamp8: TrackingInstant::zero(),
+            tracking_timestamp16: TrackingInstant::zero(),
+            tracking_timestamp32: TrackingInstant::zero(),
             integration_version: None,
             pending_context_switch_interaction: None,
             context_stack: Default::default(),
@@ -72,23 +82,83 @@ impl ContextManager {
         self.event_counter = self.event_counter.saturating_add(1);
         ev.insert_attr(ev_internal_attr_key("event_counter"), self.event_counter);
 
-        match (self.last_timestamp, ev.timestamp_raw()) {
+        let timestamp = ev.timestamp();
+        let timestamp_raw = if let Some(ts) = timestamp {
+            // Synthesize a clock rate for known timestamp units.
+            // We use this to convert instant/duration ticks to nanoseconds.
+            if self.cfg.clock_rate.is_none() && ts.has_time_base() {
+                self.cfg.clock_rate = ts.intrinsic_clock_rate();
+                if let Some(cr) = self.cfg.clock_rate.as_ref() {
+                    debug!(
+                        numerator = cr.numerator(),
+                        denominator = cr.denominator(),
+                        "Using instrinsic clock rate"
+                    );
+                }
+            }
+
+            let ts_ticks = match ts {
+                Timestamp::Ticks8(ts8) => self.tracking_timestamp8.elapsed(ts8),
+                Timestamp::Ticks16(ts16) => self.tracking_timestamp16.elapsed(ts16),
+                Timestamp::Ticks32(ts32) => self.tracking_timestamp32.elapsed(ts32),
+                _ => ts.as_u64(),
+            };
+
+            // Update event timestamp attributes
+            if ts.supports_rollover_tracking() {
+                ev.set_internal_raw_timestamp(ts.as_u64());
+                ev.set_internal_timestamp(ts_ticks);
+            }
+
+            // Convert to time base if we have a clock rate
+            if !ts.has_time_base() {
+                if let Some(clock_rate) = self.cfg.clock_rate {
+                    let ts_ns = clock_rate * ts_ticks;
+                    ev.set_timestamp(ts_ns.into());
+                }
+            }
+
+            Some(ts_ticks)
+        } else {
+            None
+        };
+
+        // Sanity check if time went backwards
+        match (self.last_raw_timestamp, timestamp_raw) {
             (Some(last_t), Some(cur_t)) => {
                 if cur_t < last_t {
                     warn!("Event record has a timestamp that went backwards, timestamp rollover possible");
                 }
-                self.last_timestamp = cur_t.into();
+                self.last_raw_timestamp = cur_t.into();
             }
             (None, Some(cur_t)) => {
-                self.last_timestamp = cur_t.into();
+                self.last_raw_timestamp = cur_t.into();
             }
             (Some(last_t), None) => {
                 warn!(
-                    last_timestamp = last_t,
-                    "Current event record doesn't have a timestamp when the previous record did"
+                    last_raw_timestamp = last_t,
+                    "Current event record doesn't have a timestamp when a previous record did"
                 );
             }
             _ => (),
+        }
+
+        // If we have a clock rate, do instant/duration time base conversions on AUXON events
+        let is_auxon_event = ev
+            .event_name()
+            .map(|n| n.starts_with("AUXON"))
+            .unwrap_or(false);
+        if is_auxon_event {
+            if let Some(clock_rate) = self.cfg.clock_rate {
+                if let Some(instant) = ev.auxon_instant() {
+                    let instant_ns = clock_rate * instant;
+                    ev.set_auxon_instant(instant, instant_ns.into());
+                }
+                if let Some(duration) = ev.auxon_duration() {
+                    let duration_ns = clock_rate * duration;
+                    ev.set_auxon_duration(duration, duration_ns.into());
+                }
+            }
         }
 
         if self.cfg.rtos_mode == RtosMode::Rtic1 {
@@ -542,73 +612,91 @@ mod test {
     use tracing_test::traced_test;
 
     fn trace_start(ts: u64) -> EventRecord {
-        EventRecord::from_iter(vec![
-            (EventRecord::attr_key("name"), rtic1::TRACE_START.into()),
-            (EventRecord::attr_key("task"), "init".into()),
-            (EventRecord::attr_key("version"), 1_u64.into()),
-            (
-                EventRecord::internal_attr_key("timestamp"),
-                BigInt::new_attr_val(ts.into()),
-            ),
-        ])
+        EventRecord::from_iter(
+            Timestamp::Ticks64(ts).into(),
+            vec![
+                (EventRecord::attr_key("name"), rtic1::TRACE_START.into()),
+                (EventRecord::attr_key("task"), "init".into()),
+                (EventRecord::attr_key("version"), 1_u64.into()),
+                (
+                    EventRecord::internal_attr_key("timestamp"),
+                    BigInt::new_attr_val(ts.into()),
+                ),
+            ],
+        )
     }
 
     fn isr_enter(ts: u64) -> EventRecord {
-        EventRecord::from_iter(vec![
-            (EventRecord::attr_key("name"), rtic1::ISR_ENTER.into()),
-            (EventRecord::attr_key("isr"), "ISR".into()),
-            (
-                EventRecord::internal_attr_key("timestamp"),
-                BigInt::new_attr_val(ts.into()),
-            ),
-        ])
+        EventRecord::from_iter(
+            Timestamp::Ticks64(ts).into(),
+            vec![
+                (EventRecord::attr_key("name"), rtic1::ISR_ENTER.into()),
+                (EventRecord::attr_key("isr"), "ISR".into()),
+                (
+                    EventRecord::internal_attr_key("timestamp"),
+                    BigInt::new_attr_val(ts.into()),
+                ),
+            ],
+        )
     }
 
     fn isr_exit(ts: u64) -> EventRecord {
-        EventRecord::from_iter(vec![
-            (EventRecord::attr_key("name"), rtic1::ISR_EXIT.into()),
-            (
-                EventRecord::internal_attr_key("timestamp"),
-                BigInt::new_attr_val(ts.into()),
-            ),
-        ])
+        EventRecord::from_iter(
+            Timestamp::Ticks64(ts).into(),
+            vec![
+                (EventRecord::attr_key("name"), rtic1::ISR_EXIT.into()),
+                (
+                    EventRecord::internal_attr_key("timestamp"),
+                    BigInt::new_attr_val(ts.into()),
+                ),
+            ],
+        )
     }
 
     fn task_enter(ts: u64) -> EventRecord {
-        EventRecord::from_iter(vec![
-            (EventRecord::attr_key("name"), rtic1::TASK_ENTER.into()),
-            (EventRecord::attr_key("task"), "task".into()),
-            (
-                EventRecord::internal_attr_key("timestamp"),
-                BigInt::new_attr_val(ts.into()),
-            ),
-        ])
+        EventRecord::from_iter(
+            Timestamp::Ticks64(ts).into(),
+            vec![
+                (EventRecord::attr_key("name"), rtic1::TASK_ENTER.into()),
+                (EventRecord::attr_key("task"), "task".into()),
+                (
+                    EventRecord::internal_attr_key("timestamp"),
+                    BigInt::new_attr_val(ts.into()),
+                ),
+            ],
+        )
     }
 
     fn task_exit(ts: u64) -> EventRecord {
-        EventRecord::from_iter(vec![
-            (EventRecord::attr_key("name"), rtic1::TASK_EXIT.into()),
-            (
-                EventRecord::internal_attr_key("timestamp"),
-                BigInt::new_attr_val(ts.into()),
-            ),
-        ])
+        EventRecord::from_iter(
+            Timestamp::Ticks64(ts).into(),
+            vec![
+                (EventRecord::attr_key("name"), rtic1::TASK_EXIT.into()),
+                (
+                    EventRecord::internal_attr_key("timestamp"),
+                    BigInt::new_attr_val(ts.into()),
+                ),
+            ],
+        )
     }
 
     fn event(name: &str, ts: u64) -> EventRecord {
-        EventRecord::from_iter(vec![
-            (EventRecord::attr_key("name"), name.into()),
-            (
-                EventRecord::internal_attr_key("timestamp"),
-                BigInt::new_attr_val(ts.into()),
-            ),
-        ])
+        EventRecord::from_iter(
+            Timestamp::Ticks64(ts).into(),
+            vec![
+                (EventRecord::attr_key("name"), name.into()),
+                (
+                    EventRecord::internal_attr_key("timestamp"),
+                    BigInt::new_attr_val(ts.into()),
+                ),
+            ],
+        )
     }
 
     fn check_mngr_state(mngr: &mut ContextManager, active_ctx_name: &str, ts_and_ev_cnt: u64) {
         assert_eq!(mngr.active_context().unwrap(), context_id(active_ctx_name));
         assert_eq!(mngr.event_counter, ts_and_ev_cnt);
-        assert_eq!(mngr.last_timestamp, Some(ts_and_ev_cnt));
+        assert_eq!(mngr.last_raw_timestamp, Some(ts_and_ev_cnt));
     }
 
     fn check_ctx_event(

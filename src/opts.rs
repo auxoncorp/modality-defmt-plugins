@@ -1,3 +1,4 @@
+use crate::time::Rate;
 use clap::Parser;
 use derive_more::Display;
 use serde_with::DeserializeFromStr;
@@ -65,6 +66,11 @@ pub struct ReflectorOpts {
 
 #[derive(Parser, Debug, Clone, Default)]
 pub struct DefmtOpts {
+    /// Use the provided rate as the time base for converting ticks to nanoseconds.
+    /// Format is 'numerator/denominator', which represents the clock frequency (in Hz).
+    #[clap(long, help_heading = "DEFMT CONFIGURATION")]
+    pub clock_rate: Option<Rate>,
+
     /// Don't synthesize interactions between tasks and ISRs when a context switch occurs
     #[clap(long, help_heading = "DEFMT CONFIGURATION")]
     pub disable_interactions: bool,

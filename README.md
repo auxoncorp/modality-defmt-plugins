@@ -67,6 +67,8 @@ These sections are the same for each of the plugins.
   - `client-timeout` — Specify a [modality-sdk][modality-sdk] client timeout. Accepts durations like "10ms" or "1minute 2seconds 22ms".
   - `run-id` — Use the provided string as the run ID instead of generating a random one.
   - `clock-id` — Use the provided string as the clock ID instead of generating a random one.
+  - `clock-rate` — Use the provided rate as the time base for converting ticks to nanoseconds.
+    Format is 'numerator/denominator', which represents the clock frequency (in Hz).
   - `init-task-name` — Use the provided initial task/context name instead of the default (`main`).
   - `disable-interactions` — Don't synthesize interactions between tasks and ISRs when a context switch occurs, when in RTOS mode.
   - `rtos-mode` — The RTOS mode to use. The default is none.

@@ -74,6 +74,20 @@ pub async fn run<R: Read + Send>(
         .unwrap_or_else(|| Uuid::new_v4().to_string());
     common_timeline_attrs.insert(TimelineMeta::attr_key("clock_id"), clock_id.into());
     common_timeline_attrs.insert(TimelineMeta::attr_key("clock_style"), "relative".into());
+    if let Some(clock_rate) = cfg.plugin.clock_rate.as_ref() {
+        common_timeline_attrs.insert(
+            TimelineMeta::attr_key("clock_rate"),
+            format!("{}/{}", clock_rate.numerator(), clock_rate.denominator()).into(),
+        );
+        common_timeline_attrs.insert(
+            TimelineMeta::attr_key("clock_rate.numerator"),
+            clock_rate.numerator().into(),
+        );
+        common_timeline_attrs.insert(
+            TimelineMeta::attr_key("clock_rate.denominator"),
+            clock_rate.denominator().into(),
+        );
+    }
     for kv in cfg
         .ingest
         .timeline_attributes
