@@ -115,7 +115,7 @@ pub async fn run<R: Read + Send>(
     let mut buffered_event: Option<ContextEvent> = None;
 
     let mut decoder = table.new_stream_decoder();
-    let mut decoder_buffer = vec![0_u8; 1024];
+    let mut decoder_buffer = vec![0_u8; 4096];
 
     debug!("Starting read loop");
 
@@ -145,7 +145,7 @@ pub async fn run<R: Read + Send>(
                     }
                     DecodeError::Malformed => {
                         warn!("Malformed defmt frame");
-                        break 'read_loop;
+                        continue;
                     }
                 },
             };
