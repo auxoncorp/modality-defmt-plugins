@@ -22,7 +22,6 @@ features = ["critical-section-single-core"]
 #version = "1.1.4"
 git = "https://github.com/auxoncorp/cortex-m-rtic.git"
 branch = "defmt-instrumentation"
-features = ["tracing-include-scheduling-ticks"]
 
 [dependencies.dwt-systick-monotonic]
 version = "1.1"
