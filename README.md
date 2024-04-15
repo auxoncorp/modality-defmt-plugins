@@ -100,12 +100,18 @@ reflector configuration file, e.g. `[plugins.ingest.collectors.defmt-rtt.metadat
     See the [RTT timing section](https://docs.rs/probe-rs-rtt/0.14.2/probe_rs_rtt/struct.Rtt.html#examples-of-how-timing-between-host-and-target-effects-the-results) for more information.
   - `control-block-address` —  Use the provided RTT control block address instead of scanning the target memory for it.
   - `up-channel` — The RTT up (target to host) channel number to poll on. The default value is 0.
+  - `setup-on-breakpoint` — Set a breakpoint on the address of the given symbol used to signal
+    when to enable RTT BlockIfFull channel mode and start reading.
+    Can be an absolute address or symbol name.
+  - `thumb` — Assume thumb mode when resolving symbols from the ELF file for breakpoint addresses.
   - `probe-selector` — Select a specific probe instead of opening the first available one.
   - `chip` — The target chip to attach to (e.g. `STM32F407VE`).
   - `protocol` — Protocol used to connect to chip. Possible options: [`swd`, `jtag`]. The default value is `swd`.
   - `speed` — The protocol speed in kHz. The default value is 4000.
   - `core` — The selected core to target. The default value is 0.
   - `reset` — Reset the target on startup.
+  - `attach-under-reset` — Attach to the chip under hard-reset.
+    This asserts the reset pin via the probe, plays the protocol init routines and deasserts the pin.
   - `chip-description-path` — Provides custom target descriptions based on CMSIS Pack files.
     See the [probe-rs target extraction](https://probe.rs/docs/knowledge-base/cmsis-packs/#target-extraction) section for
     more information.

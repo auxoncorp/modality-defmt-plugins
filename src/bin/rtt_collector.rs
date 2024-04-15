@@ -6,8 +6,8 @@ use modality_defmt_plugin::{
 use probe_rs::{
     config::MemoryRegion,
     probe::{list::Lister, DebugProbeSelector, WireProtocol},
-    rtt::{Rtt, ScanRegion, UpChannel},
-    Core, Permissions, Session, VectorCatchCondition,
+    rtt::{ChannelMode, Rtt, ScanRegion, UpChannel},
+    Core, CoreStatus, HaltReason, Permissions, RegisterValue, Session, VectorCatchCondition,
 };
 use std::{
     fs, io,
@@ -15,8 +15,7 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use thiserror::Error;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 /// Collect defmt data from an on-device RTT buffer
 #[derive(Parser, Debug, Clone)]
@@ -51,6 +50,26 @@ struct Opts {
     /// The RTT up (target to host) channel number to poll on (defaults to 0).
     #[clap(long, name = "up-channel", help_heading = "COLLECTOR CONFIGURATION")]
     pub up_channel: Option<usize>,
+
+    /// Set a breakpoint on the address of the given symbol used to signal
+    /// when to enable RTT BlockIfFull channel mode and start reading.
+    ///
+    /// Can be an absolute address or symbol name.
+    #[arg(
+        long,
+        name = "setup-on-breakpoint",
+        help_heading = "COLLECTOR CONFIGURATION"
+    )]
+    pub setup_on_breakpoint: Option<String>,
+
+    /// Assume thumb mode when resolving symbols from the ELF file
+    /// for breakpoint addresses.
+    #[arg(
+        long,
+        requires = "setup-on-breakpoint",
+        help_heading = "COLLECTOR CONFIGURATION"
+    )]
+    pub thumb: bool,
 
     /// Select a specific probe instead of opening the first available one.
     ///
@@ -104,6 +123,7 @@ struct Opts {
 
     /// The ELF file containing the defmt table and location information.
     #[clap(
+        long,
         name = "elf-file",
         verbatim_doc_comment,
         help_heading = "DEFMT CONFIGURATION"
@@ -168,6 +188,12 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if let Some(up_channel) = opts.up_channel {
         defmt_cfg.plugin.rtt_collector.up_channel = up_channel;
+    }
+    if let Some(setup_on_breakpoint) = &opts.setup_on_breakpoint {
+        defmt_cfg.plugin.rtt_collector.setup_on_breakpoint = Some(setup_on_breakpoint.clone());
+    }
+    if opts.thumb {
+        defmt_cfg.plugin.rtt_collector.thumb = true;
     }
     if let Some(ps) = &opts.probe_selector {
         defmt_cfg.plugin.rtt_collector.probe_selector = Some(ps.clone().into());
@@ -268,6 +294,41 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     core.disable_vector_catch(VectorCatchCondition::All)?;
     core.clear_all_hw_breakpoints()?;
 
+    if let Some(bp_sym_or_addr) = &defmt_cfg.plugin.rtt_collector.setup_on_breakpoint {
+        let num_bp = core.available_breakpoint_units()?;
+
+        let bp_addr = if let Some(bp_addr) = bp_sym_or_addr
+            .parse::<u64>()
+            .ok()
+            .or(u64::from_str_radix(bp_sym_or_addr.trim_start_matches("0x"), 16).ok())
+        {
+            bp_addr
+        } else {
+            let mut file = fs::File::open(
+                defmt_cfg
+                    .plugin
+                    .elf_file
+                    .as_ref()
+                    .ok_or(modality_defmt_plugin::Error::MissingElfFile)?,
+            )?;
+            let bp_addr = get_symbol(&mut file, bp_sym_or_addr)
+                .ok_or_else(|| Error::ElfSymbol(bp_sym_or_addr.to_owned()))?;
+            if opts.thumb {
+                bp_addr & !1
+            } else {
+                bp_addr
+            }
+        };
+
+        debug!(
+            available_breakpoints = num_bp,
+            symbol_or_addr = bp_sym_or_addr,
+            addr = format_args!("0x{:X}", bp_addr),
+            "Setting breakpoint to do RTT channel setup"
+        );
+        core.set_hw_breakpoint(bp_addr)?;
+    }
+
     let mut rtt = match defmt_cfg.plugin.rtt_collector.attach_timeout {
         Some(to) if !to.0.is_zero() => {
             attach_retry_loop(&mut core, &memory_map, &rtt_scan_region, to.0)?
@@ -278,11 +339,6 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    if defmt_cfg.plugin.rtt_collector.reset {
-        debug!("Run core");
-        core.run()?;
-    }
-
     let up_channel = rtt
         .up_channels()
         .take(defmt_cfg.plugin.rtt_collector.up_channel)
@@ -291,19 +347,61 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     let up_channel_name = up_channel.name().unwrap_or("NA");
     debug!(channel = up_channel.number(), name = up_channel_name, mode = ?up_channel_mode, buffer_size = up_channel.buffer_size(), "Opened up channel");
 
-    // TODO - add blocking/non-blocking mode control
+    if defmt_cfg.plugin.rtt_collector.reset || defmt_cfg.plugin.rtt_collector.attach_under_reset {
+        let sp_reg = core.stack_pointer();
+        let sp: RegisterValue = core.read_core_reg(sp_reg.id())?;
+        let pc_reg = core.program_counter();
+        let pc: RegisterValue = core.read_core_reg(pc_reg.id())?;
+        debug!(pc = %pc, sp = %sp, "Run core");
+        core.run()?;
+    }
+
+    if defmt_cfg.plugin.rtt_collector.setup_on_breakpoint.is_some() {
+        debug!("Waiting for breakpoint");
+        'bp_loop: loop {
+            if intr.is_set() {
+                break;
+            }
+
+            match core.status()? {
+                CoreStatus::Running => (),
+                CoreStatus::Halted(halt_reason) => match halt_reason {
+                    HaltReason::Breakpoint(_) => break 'bp_loop,
+                    _ => {
+                        warn!(reason = ?halt_reason, "Unexpected halt reason");
+                        break 'bp_loop;
+                    }
+                },
+                state => {
+                    warn!(state = ?state, "Core is in an unexpected state");
+                    break 'bp_loop;
+                }
+            }
+
+            std::thread::sleep(Duration::from_millis(100));
+        }
+
+        let mode = ChannelMode::BlockIfFull;
+        debug!(mode = ?mode, "Set channel mode");
+        up_channel.set_mode(&mut core, mode)?;
+
+        debug!("Run core after breakpoint setup");
+        core.run()?;
+    }
 
     // Only hold onto the Core when we need to lock the debug probe driver (before each read/write)
     std::mem::drop(core);
 
     let session = Arc::new(Mutex::new(session));
+    let up_channel = Arc::new(up_channel);
     let session_clone = session.clone();
+    let up_channel_clone = up_channel.clone();
     let defmt_cfg_clone = defmt_cfg.clone();
     let mut join_handle: tokio::task::JoinHandle<Result<(), Error>> = tokio::spawn(async move {
         let mut stream = DefmtRttReader::new(
             intr.clone(),
             session_clone,
-            up_channel,
+            up_channel_clone,
             defmt_cfg_clone.plugin.rtt_collector.core,
         );
         defmt_reader::run(&mut stream, defmt_cfg_clone, intr).await?;
@@ -329,18 +427,30 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // TODO set channel mode to non-blocking on exit
+    let mut session = match session.lock() {
+        Ok(s) => s,
+        // Reader thread is either shutdown or aborted
+        Err(s) => s.into_inner(),
+    };
+    let mut core = session.core(defmt_cfg.plugin.rtt_collector.core)?;
+    let mode = ChannelMode::NoBlockTrim;
+    debug!(mode = ?mode, "Set channel mode");
+    up_channel.set_mode(&mut core, mode)?;
 
     Ok(())
 }
 
 fn get_rtt_symbol<T: io::Read + io::Seek>(file: &mut T) -> Option<u64> {
+    get_symbol(file, "_SEGGER_RTT")
+}
+
+fn get_symbol<T: io::Read + io::Seek>(file: &mut T, symbol: &str) -> Option<u64> {
     let mut buffer = Vec::new();
     if file.read_to_end(&mut buffer).is_ok() {
         if let Ok(binary) = goblin::elf::Elf::parse(buffer.as_slice()) {
             for sym in &binary.syms {
                 if let Some(name) = binary.strtab.get_at(sym.st_name) {
-                    if name == "_SEGGER_RTT" {
+                    if name == symbol {
                         return Some(sym.st_value);
                     }
                 }
@@ -377,7 +487,7 @@ fn attach_retry_loop(
     Ok(Rtt::attach(core, memory_map)?)
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 enum Error {
     #[error("No probes available")]
     NoProbesAvailable,
@@ -389,6 +499,9 @@ enum Error {
 
     #[error("The RTT up channel ({0}) is invalid")]
     UpChannelInvalid(usize),
+
+    #[error("Could not locate the address of symbol '{0}' in the ELF file")]
+    ElfSymbol(String),
 
     #[error("Encountered an error with the probe. {0}")]
     ProbeRs(#[from] probe_rs::Error),
@@ -403,7 +516,7 @@ enum Error {
 struct DefmtRttReader {
     interruptor: Interruptor,
     session: Arc<Mutex<Session>>,
-    ch: UpChannel,
+    channel: Arc<UpChannel>,
     core_index: usize,
 }
 
@@ -411,13 +524,13 @@ impl DefmtRttReader {
     pub fn new(
         interruptor: Interruptor,
         session: Arc<Mutex<Session>>,
-        ch: UpChannel,
+        channel: Arc<UpChannel>,
         core_index: usize,
     ) -> Self {
         Self {
             interruptor,
             session,
-            ch,
+            channel,
             core_index,
         }
     }
@@ -431,7 +544,7 @@ impl io::Read for DefmtRttReader {
                 let mut core = session
                     .core(self.core_index)
                     .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
-                self.ch
+                self.channel
                     .read(&mut core, buf)
                     .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?
             };
