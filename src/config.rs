@@ -70,7 +70,10 @@ pub struct RttCollectorConfig {
     pub speed: u32,
     pub core: usize,
     pub reset: bool,
+    pub attach_under_reset: bool,
     pub chip_description_path: Option<PathBuf>,
+    pub thumb: bool,
+    pub setup_on_breakpoint: Option<String>,
 }
 
 impl RttCollectorConfig {
@@ -92,7 +95,10 @@ impl Default for RttCollectorConfig {
             speed: Self::DEFAULT_SPEED,
             core: Self::DEFAULT_CORE,
             reset: false,
+            attach_under_reset: false,
             chip_description_path: None,
+            thumb: false,
+            setup_on_breakpoint: None,
         }
     }
 }
@@ -352,7 +358,10 @@ protocol = 'Jtag'
 speed = 1234
 core = 1
 reset = true
+attach-under-reset = true
 chip-description-path = "/tmp/stm32.yaml"
+thumb = true
+setup-on-breakpoint = "main"
 "#;
 
     // Do a basic round trip check while we're at it
@@ -470,7 +479,10 @@ chip-description-path = "/tmp/stm32.yaml"
                         speed: 1234,
                         core: 1,
                         reset: true,
+                        attach_under_reset: true,
                         chip_description_path: PathBuf::from("/tmp/stm32.yaml").into(),
+                        thumb: true,
+                        setup_on_breakpoint: Some("main".to_owned()),
                     },
                 },
             }

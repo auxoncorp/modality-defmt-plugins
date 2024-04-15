@@ -85,6 +85,14 @@ struct Opts {
     #[clap(long, name = "reset", help_heading = "PROBE CONFIGURATION")]
     pub reset: bool,
 
+    /// Attach to the chip under hard-reset.
+    #[clap(
+        long,
+        name = "attach-under-reset",
+        help_heading = "PROBE CONFIGURATION"
+    )]
+    pub attach_under_reset: bool,
+
     /// Chip description YAML file path.
     /// Provides custom target descriptions based on CMSIS Pack files.
     #[clap(
@@ -179,6 +187,9 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     if opts.reset {
         defmt_cfg.plugin.rtt_collector.reset = true;
     }
+    if opts.attach_under_reset {
+        defmt_cfg.plugin.rtt_collector.attach_under_reset = true;
+    }
     if let Some(cd) = &opts.chip_description_path {
         defmt_cfg.plugin.rtt_collector.chip_description_path = Some(cd.clone());
     }
@@ -219,7 +230,11 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         "Attaching to chip"
     );
 
-    let mut session = probe.attach(chip, Permissions::default())?;
+    let mut session = if defmt_cfg.plugin.rtt_collector.attach_under_reset {
+        probe.attach_under_reset(chip, Permissions::default())?
+    } else {
+        probe.attach(chip, Permissions::default())?
+    };
 
     let rtt_scan_regions = session.target().rtt_scan_regions.clone();
     let mut rtt_scan_region = if rtt_scan_regions.is_empty() {
