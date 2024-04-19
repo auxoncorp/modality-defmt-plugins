@@ -40,6 +40,9 @@ clap = { version = "4.5", features = ["derive", "env", "color"] }
 clap-stdin = "0.4"
 ctrlc = { version = "3.4", features = ["termination"] }
 exitcode = "1"
+ratelimit = "0.9"
+human_bytes = "0.4"
+simple_moving_average = "1.0"
 auxon-sdk = { version = "1.3", features = ["modality"] }
 
 [dev-dependencies]

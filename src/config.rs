@@ -74,6 +74,9 @@ pub struct RttCollectorConfig {
     pub chip_description_path: Option<PathBuf>,
     pub thumb: bool,
     pub setup_on_breakpoint: Option<String>,
+    pub rtt_read_buffer_size: usize,
+    pub rtt_poll_interval: Option<HumanTime>,
+    pub metrics: bool,
 }
 
 impl RttCollectorConfig {
@@ -81,6 +84,7 @@ impl RttCollectorConfig {
     pub const DEFAULT_PROTOCOL: probe_rs::probe::WireProtocol = probe_rs::probe::WireProtocol::Swd;
     pub const DEFAULT_SPEED: u32 = 4000;
     pub const DEFAULT_CORE: usize = 0;
+    const DEFAULT_RTT_BUFFER_SIZE: usize = 1024;
 }
 
 impl Default for RttCollectorConfig {
@@ -99,6 +103,9 @@ impl Default for RttCollectorConfig {
             chip_description_path: None,
             thumb: false,
             setup_on_breakpoint: None,
+            rtt_read_buffer_size: Self::DEFAULT_RTT_BUFFER_SIZE,
+            rtt_poll_interval: None,
+            metrics: false,
         }
     }
 }
@@ -362,6 +369,9 @@ attach-under-reset = true
 chip-description-path = "/tmp/stm32.yaml"
 thumb = true
 setup-on-breakpoint = "main"
+rtt-poll-interval = "1ms"
+rtt-read-buffer-size = 1024
+metrics = true
 "#;
 
     // Do a basic round trip check while we're at it
@@ -483,6 +493,9 @@ setup-on-breakpoint = "main"
                         chip_description_path: PathBuf::from("/tmp/stm32.yaml").into(),
                         thumb: true,
                         setup_on_breakpoint: Some("main".to_owned()),
+                        rtt_poll_interval: HumanTime::from_str("1ms").unwrap().into(),
+                        rtt_read_buffer_size: 1024,
+                        metrics: true,
                     },
                 },
             }

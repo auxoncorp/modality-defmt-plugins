@@ -1,4 +1,5 @@
 use clap::Parser;
+use human_bytes::human_bytes;
 use modality_defmt_plugin::{
     defmt_reader, tracing::try_init_tracing_subscriber, DefmtConfig, DefmtConfigEntry, DefmtOpts,
     Interruptor, ReflectorOpts,
@@ -9,13 +10,15 @@ use probe_rs::{
     rtt::{ChannelMode, Rtt, ScanRegion, UpChannel},
     Core, CoreStatus, HaltReason, Permissions, RegisterValue, Session, VectorCatchCondition,
 };
+use ratelimit::Ratelimiter;
+use simple_moving_average::{NoSumSMA, SMA};
 use std::{
     fs, io,
     path::PathBuf,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, trace, warn};
 
 /// Collect defmt data from an on-device RTT buffer
 #[derive(Parser, Debug, Clone)]
@@ -129,6 +132,34 @@ struct Opts {
         help_heading = "DEFMT CONFIGURATION"
     )]
     pub elf_file: Option<PathBuf>,
+
+    /// Size of the host-side RTT buffer used to store data read off the target.
+    ///
+    /// The default value is 1024.
+    #[clap(
+        long,
+        name = "rtt-reader-buffer-size",
+        help_heading = "REFLECTOR CONFIGURATION"
+    )]
+    pub rtt_read_buffer_size: Option<usize>,
+
+    /// The host-side RTT polling interval.
+    /// Note that when the interface returns no data, we delay longer than this
+    /// interval to prevent USB connection instability.
+    ///
+    /// The default value is 1ms.
+    ///
+    /// Accepts durations like "10ms" or "1minute 2seconds 22ms".
+    #[clap(
+        long,
+        name = "rtt-poll-interval",
+        help_heading = "REFLECTOR CONFIGURATION"
+    )]
+    pub rtt_poll_interval: Option<humantime::Duration>,
+
+    /// Periodically log RTT metrics to stdout
+    #[clap(long, name = "metrics", help_heading = "REFLECTOR CONFIGURATION")]
+    pub metrics: bool,
 }
 
 #[tokio::main]
@@ -218,6 +249,15 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if let Some(cd) = &opts.chip_description_path {
         defmt_cfg.plugin.rtt_collector.chip_description_path = Some(cd.clone());
+    }
+    if let Some(rtt_read_buffer_size) = opts.rtt_read_buffer_size {
+        defmt_cfg.plugin.rtt_collector.rtt_read_buffer_size = rtt_read_buffer_size;
+    }
+    if let Some(rtt_poll_interval) = opts.rtt_poll_interval {
+        defmt_cfg.plugin.rtt_collector.rtt_poll_interval = Some(rtt_poll_interval.into());
+    }
+    if opts.metrics {
+        defmt_cfg.plugin.rtt_collector.metrics = true;
     }
 
     let chip = defmt_cfg
@@ -398,12 +438,28 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     let up_channel_clone = up_channel.clone();
     let defmt_cfg_clone = defmt_cfg.clone();
     let mut join_handle: tokio::task::JoinHandle<Result<(), Error>> = tokio::spawn(async move {
+        let poll_interval = defmt_cfg_clone
+            .plugin
+            .rtt_collector
+            .rtt_poll_interval
+            .map(|d| d.0.into())
+            .unwrap_or(DefmtRttReader::DEFAULT_POLL_INTERVAL);
+        let metrics = if defmt_cfg_clone.plugin.rtt_collector.metrics {
+            Some(Metrics::new(
+                defmt_cfg_clone.plugin.rtt_collector.rtt_read_buffer_size,
+            ))
+        } else {
+            None
+        };
         let mut stream = DefmtRttReader::new(
             intr.clone(),
             session_clone,
             up_channel_clone,
             defmt_cfg_clone.plugin.rtt_collector.core,
-        );
+            poll_interval,
+            defmt_cfg_clone.plugin.rtt_collector.rtt_read_buffer_size,
+            metrics,
+        )?;
         defmt_reader::run(&mut stream, defmt_cfg_clone, intr).await?;
         Ok(())
     });
@@ -509,6 +565,9 @@ enum Error {
     #[error("Encountered an error with the probe RTT instance. {0}")]
     ProbeRsRtt(#[from] probe_rs::rtt::Error),
 
+    #[error("Encountered an error with the RTT rate limiter. {0}")]
+    Ratelimiter(#[from] ratelimit::Error),
+
     #[error(transparent)]
     DefmtReader(#[from] modality_defmt_plugin::Error),
 }
@@ -518,21 +577,42 @@ struct DefmtRttReader {
     session: Arc<Mutex<Session>>,
     channel: Arc<UpChannel>,
     core_index: usize,
+    last_poll_had_data: bool,
+    poll_interval: Duration,
+    ratelimiter: Ratelimiter,
+    metrics: Option<Metrics>,
 }
 
 impl DefmtRttReader {
+    const DEFAULT_POLL_INTERVAL: Duration = Duration::from_millis(1);
+    const NO_DATA_POLL_INTERVAL: Duration = Duration::from_millis(100);
+
     pub fn new(
         interruptor: Interruptor,
         session: Arc<Mutex<Session>>,
         channel: Arc<UpChannel>,
         core_index: usize,
-    ) -> Self {
-        Self {
+        poll_interval: Duration,
+        rtt_buffer_size: usize,
+        metrics: Option<Metrics>,
+    ) -> Result<Self, Error> {
+        debug!(rtt_buffer_size, data_poll_interval = ?poll_interval, no_data_poll_interval = ?Self::NO_DATA_POLL_INTERVAL, "Setup RTT reader");
+        let ratelimiter = Ratelimiter::builder(1, poll_interval)
+            .initial_available(1)
+            .build()?;
+        // Make sure we can safely unwrap on set_refill_interval in the Read impl
+        ratelimiter.set_refill_interval(Self::NO_DATA_POLL_INTERVAL)?;
+        ratelimiter.set_refill_interval(poll_interval)?;
+        Ok(Self {
             interruptor,
             session,
             channel,
             core_index,
-        }
+            last_poll_had_data: true,
+            poll_interval,
+            ratelimiter,
+            metrics,
+        })
     }
 }
 
@@ -548,21 +628,108 @@ impl io::Read for DefmtRttReader {
                     .read(&mut core, buf)
                     .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?
             };
+            trace!(rtt_bytes_read);
 
             // NOTE: this is what probe-rs does
             //
             // Poll RTT with a frequency of 10 Hz if we do not receive any new data.
-            // Once we receive new data, we bump the frequency to 1kHz.
+            // Once we receive new data, we bump the frequency to 1kHz (default).
             //
             // If the polling frequency is too high, the USB connection to the probe
             // can become unstable. Hence we only pull as little as necessary.
+            //
+            // SAFETY: we check that both intervals are valid in the constructor
+            match ((rtt_bytes_read != 0), self.last_poll_had_data) {
+                (true, false) => {
+                    self.ratelimiter
+                        .set_refill_interval(self.poll_interval)
+                        .unwrap();
+                }
+                (false, true) => {
+                    self.ratelimiter
+                        .set_refill_interval(Self::NO_DATA_POLL_INTERVAL)
+                        .unwrap();
+                }
+                _ => (),
+            }
+            self.last_poll_had_data = rtt_bytes_read != 0;
+
+            if let Err(delay) = self.ratelimiter.try_wait() {
+                std::thread::sleep(delay);
+            }
+
+            if let Some(metrics) = self.metrics.as_mut() {
+                metrics.update(rtt_bytes_read);
+            }
+
             if rtt_bytes_read != 0 {
-                std::thread::sleep(Duration::from_millis(1));
                 return Ok(rtt_bytes_read);
-            } else {
-                std::thread::sleep(Duration::from_millis(100));
             }
         }
         Ok(0)
+    }
+}
+
+struct Metrics {
+    rtt_buffer_size: u64,
+    window_start: Instant,
+    read_cnt: u64,
+    bytes_read: u64,
+    read_zero_cnt: u64,
+    read_max_cnt: u64,
+    sma: NoSumSMA<f64, f64, 8>,
+}
+
+impl Metrics {
+    const WINDOW_DURATION: Duration = Duration::from_secs(2);
+
+    fn new(rtt_buffer_size: usize) -> Self {
+        Self {
+            rtt_buffer_size: rtt_buffer_size as u64,
+            window_start: Instant::now(),
+            read_cnt: 0,
+            bytes_read: 0,
+            read_zero_cnt: 0,
+            read_max_cnt: 0,
+            sma: NoSumSMA::new(),
+        }
+    }
+
+    fn reset(&mut self) {
+        self.read_cnt = 0;
+        self.bytes_read = 0;
+        self.read_zero_cnt = 0;
+        self.read_max_cnt = 0;
+
+        self.window_start = Instant::now();
+    }
+
+    fn update(&mut self, bytes_read: usize) {
+        let dur = Instant::now().duration_since(self.window_start);
+
+        self.read_cnt += 1;
+        self.bytes_read += bytes_read as u64;
+        if bytes_read == 0 {
+            self.read_zero_cnt += 1;
+        } else if bytes_read as u64 == self.rtt_buffer_size {
+            self.read_max_cnt += 1;
+        } else {
+            self.sma.add_sample(bytes_read as f64);
+        }
+
+        if dur >= Self::WINDOW_DURATION {
+            let bytes = self.bytes_read as f64;
+            let secs = dur.as_secs_f64();
+
+            info!(
+                transfer_rate = format!("{}/s", human_bytes(bytes / secs)),
+                cnt = self.read_cnt,
+                zero_cnt = self.read_zero_cnt,
+                max_cnt = self.read_max_cnt,
+                avg = self.sma.get_average(),
+            );
+
+            self.reset();
+        }
     }
 }

@@ -121,7 +121,7 @@ pub async fn run<R: Read + Send>(
     let mut buffered_event: Option<ContextEvent> = None;
 
     let mut decoder = table.new_stream_decoder();
-    let mut decoder_buffer = vec![0_u8; 1024];
+    let mut decoder_buffer = vec![0_u8; cfg.plugin.rtt_collector.rtt_read_buffer_size];
 
     debug!("Starting read loop");
 

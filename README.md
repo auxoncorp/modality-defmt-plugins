@@ -115,6 +115,11 @@ reflector configuration file, e.g. `[plugins.ingest.collectors.defmt-rtt.metadat
   - `chip-description-path` — Provides custom target descriptions based on CMSIS Pack files.
     See the [probe-rs target extraction](https://probe.rs/docs/knowledge-base/cmsis-packs/#target-extraction) section for
     more information.
+  - `rtt-poll-interval` — The host-side RTT polling interval. The default value is 1ms.
+    Accepts durations like "10ms" or "1minute 2seconds 22ms".
+  - `rtt-reader-buffer-size` — Size of the host-side RTT buffer used to store data read off the target.
+    The default value is 1024.
+  - `metrics` — Periodically log RTT metrics to stdout that can be used to assess the target and host RTT configuration.
 
 ### RTOS Mode
 
