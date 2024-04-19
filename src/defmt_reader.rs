@@ -9,6 +9,8 @@ use std::{fs, io::Read, time::Duration};
 use tracing::{debug, warn};
 use uuid::Uuid;
 
+pub const PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub async fn run<R: Read + Send>(
     mut r: R,
     cfg: DefmtConfig,
@@ -88,6 +90,10 @@ pub async fn run<R: Read + Send>(
             clock_rate.denominator().into(),
         );
     }
+    common_timeline_attrs.insert(
+        TimelineMeta::internal_attr_key("plugin.version"),
+        PLUGIN_VERSION.into(),
+    );
     for kv in cfg
         .ingest
         .timeline_attributes
