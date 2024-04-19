@@ -313,7 +313,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             )?;
             let bp_addr = get_symbol(&mut file, bp_sym_or_addr)
                 .ok_or_else(|| Error::ElfSymbol(bp_sym_or_addr.to_owned()))?;
-            if opts.thumb {
+            if defmt_cfg.plugin.rtt_collector.thumb {
                 bp_addr & !1
             } else {
                 bp_addr
