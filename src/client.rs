@@ -53,7 +53,7 @@ impl Client {
         let mut interned_attrs = Vec::new();
         for (k, v) in attrs.into_iter() {
             let key = normalize_event_key(k);
-            let int_key = if let Some(ik) = self.timeline_keys.get(&key) {
+            let int_key = if let Some(ik) = self.event_keys.get(&key) {
                 *ik
             } else {
                 let ik = self.inner.declare_attr_key(key.clone()).await?;
