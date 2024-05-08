@@ -47,7 +47,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.AUXON_GHCR_TOKEN }}
+          password: ${{ secrets.AUXON_GHCR_TOKEN_RO }}
 
       - name: Install system packages
         run: |
@@ -87,9 +87,9 @@ jobs:
 
       - name: Start Modality server
         run: |
-          image="ghcr.io/auxoncorp/modalityd-nightly:latest"
-          if [ "${{github.event.inputs.package_channel}}" == "stable" ]; then
-            image="ghcr.io/auxoncorp/modalityd:latest"
+          image="ghcr.io/auxoncorp/modalityd:latest"
+          if [ "${{github.event.inputs.package_channel}}" == "nightly" ]; then
+            image="ghcr.io/auxoncorp/modalityd-nightly:latest"
           fi
           mkdir -p modalityd_data
           docker run \
@@ -136,9 +136,9 @@ jobs:
       - name: Import data
         working-directory: test_system
         run: |
-          image="ghcr.io/auxoncorp/modality-reflector-nightly:latest"
-          if [ "${{github.event.inputs.package_channel}}" == "stable" ]; then
-            image="ghcr.io/auxoncorp/modality-reflector:latest"
+          image="ghcr.io/auxoncorp/modality-reflector:latest"
+          if [ "${{github.event.inputs.package_channel}}" == "nightly" ]; then
+            image="ghcr.io/auxoncorp/modality-reflector-nightly:latest"
           fi
           docker run \
             --name reflector \
