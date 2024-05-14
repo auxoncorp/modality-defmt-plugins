@@ -50,3 +50,26 @@ the plugins directory (e.g. if installed to `/opt`):
 ```bash
 modality-reflector import --config config/reflector-config.toml defmt --elf-file target/thumbv7em-none-eabihf/release/atsamd-rtic-firmware /tmp/rtt_log.bin
 ```
+
+## Robot Framework
+
+1. Setup new user/workspace
+  ```bash
+  ./scripts/setup_modality.sh
+  ```
+2. Build the test system
+  ```bash
+  cargo build --release
+  ```
+3. Setup the python venv and install dependencies (NOTE: assumes renode is installed in /opt)
+  ```bash
+  ./scripts/setup_robot_framework.sh
+  ```
+4. Run the robot framework tests
+  ```bash
+  ./scripts/run_robot_framework.sh
+  ```
+5. Optionally view the report html (assumes firefox)
+  ```bash
+  ./scripts/view_report.sh
+  ```

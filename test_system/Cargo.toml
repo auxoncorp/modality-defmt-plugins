@@ -94,6 +94,7 @@ pre-start-commands = [
 #'write_staged_mutation "88b565a8-455b-4993-9779-9f6d4004d6d5" "d135b4b9-64c9-4d0d-b2bb-621e37ca29f7"',
 reset = '''
     sysbus LoadELF $bin
+    clear_modality_noint_vars
     clear_deviant_noint_vars
     cpu0 AddHook `sysbus GetSymbolAddress "wait_forever"` $hookScript
 '''

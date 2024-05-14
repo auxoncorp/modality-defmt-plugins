@@ -38,4 +38,5 @@ macro reset
 
 runMacro $reset
 
+clear_modality_noint_vars
 clear_deviant_noint_vars
