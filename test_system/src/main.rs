@@ -44,6 +44,10 @@ mod app {
     /// Mutator/Mutation UUID byte array
     type DeviantUuid = [u8; 16];
 
+    #[link_section = ".uninit.modality0"]
+    #[no_mangle]
+    static mut MODALITY_TEST_FRAMEWORK_NONCE: MaybeUninit<u32> = MaybeUninit::uninit();
+
     /// Deviant staged-mutation related.
     /// These get initialized by renode on startup based on whether
     /// or not a mutation is staged.
@@ -95,6 +99,11 @@ mod app {
         let uart3 = uart::Config::new(&mclk, device.SERCOM3, pads, clocks.gclk0.freq())
             .baud(baud, BaudMode::Fractional(Oversampling::Bits16))
             .enable();
+
+        let test_framework_nonce = unsafe { MODALITY_TEST_FRAMEWORK_NONCE.assume_init() };
+        if test_framework_nonce != 0 {
+            debug!("test_framework_ack::nonce={=u32}", test_framework_nonce);
+        }
 
         info!("Initializing app");
         debug!(

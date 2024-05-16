@@ -6,4 +6,8 @@ report.html
 robot_output.xml
 snapshots/
 results-tests.robot.xml
+results-test_suite.robot.xml
 .runids
+.env
+robot_framework/__pycache__/
+modality-robot-framework

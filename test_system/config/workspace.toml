@@ -1,3 +1,11 @@
+custom-interactions = [
+"""
+   start_component @ robot_framework as tx
+     -> test_framework_ack @ init as rx
+   AND tx.nonce = rx.nonce
+""",
+]
+
 [[segmentation-rule]]
 name = "by-run-id"
 attributes = ["run_id"]

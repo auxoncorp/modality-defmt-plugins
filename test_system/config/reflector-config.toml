@@ -14,7 +14,7 @@ override-timeline-attributes = [
 [plugins.ingest.importers.defmt]
 additional-timeline-attributes = [
     "platform='RTICv1'",
-    "module='defmt-test-system'",
+    "module='test-system'",
 ]
 
 [plugins.ingest.importers.defmt.metadata]
